@@ -164,7 +164,7 @@ export default function Dashboard() {
                           <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
                           <XAxis 
                             dataKey="timestamp" 
-                            tickFormatter={formatXAxis} 
+                            tickFormatter={(val) => formatXAxis(val)} 
                             stroke="#ffffff30" 
                             fontSize={12}
                             tickMargin={10}
@@ -178,7 +178,7 @@ export default function Dashboard() {
                           <Tooltip 
                             contentStyle={{ backgroundColor: '#0a0a0a', borderColor: '#ffffff20', borderRadius: '12px', color: '#fff' }}
                             itemStyle={{ color: '#fff' }}
-                            labelFormatter={formatXAxis}
+                            labelFormatter={(label) => formatXAxis(label)}
                           />
                           <Line 
                             type="monotone" 
