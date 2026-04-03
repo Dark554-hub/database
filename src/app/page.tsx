@@ -48,7 +48,7 @@ export default function Dashboard() {
   }, []);
 
   // Formateador de tiempo para el eje X
-  const formatXAxis = (tickItem: string) => {
+  const formatXAxis = (tickItem: any) => {
     if (!tickItem) return "";
     try {
       const date = new Date(tickItem);
