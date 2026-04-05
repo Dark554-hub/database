@@ -24,7 +24,7 @@ interface LogEntry {
 }
 
 export default function BluetoothCollector() {
-  const [device, setDevice] = useState<BluetoothDevice | null>(null);
+  const [device, setDevice] = useState<any | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [status, setStatus] = useState<"disconnected" | "connected" | "syncing">("disconnected");
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -34,7 +34,7 @@ export default function BluetoothCollector() {
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setIsWebBluetoothSupported(typeof navigator !== 'undefined' && !!navigator.bluetooth);
+    setIsWebBluetoothSupported(typeof navigator !== 'undefined' && !!(navigator as any).bluetooth);
     addLog("Sistema iniciado. Listo para recolectar datos.", "info");
   }, []);
 
@@ -63,7 +63,7 @@ export default function BluetoothCollector() {
 
     try {
       // Intentamos aceptar todos los dispositivos para máxima compatibilidad
-      const device = await navigator.bluetooth.requestDevice({
+      const device = await (navigator as any).bluetooth.requestDevice({
         acceptAllDevices: true,
         // Algunos servicios comunes que suelen usar los ESP32 (UART, Generic)
         optionalServices: [
