@@ -3,8 +3,9 @@
 
 import React, { useEffect, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { Activity, Database, Server, RefreshCw, WifiOff } from "lucide-react";
+import { Activity, Database, Server, RefreshCw, WifiOff, Bluetooth } from "lucide-react";
 import { format } from "date-fns";
+import Link from "next/link";
 
 export default function Dashboard() {
   const [data, setData] = useState<any[]>([]);
@@ -85,27 +86,37 @@ export default function Dashboard() {
           </div>
         </div>
         
-        <div className="flex items-center gap-4 bg-neutral-900 border border-white/5 rounded-full px-5 py-2 text-sm shadow-inner">
-          <span className="flex items-center gap-2">
-            {error ? (
-              <span className="flex items-center gap-2 text-red-400">
-                <WifiOff className="w-4 h-4" /> Desconectado
-              </span>
-            ) : (
-              <span className="flex items-center gap-2 text-emerald-400">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        <div className="flex flex-wrap items-center gap-4">
+          <Link 
+            href="/collector"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-full text-sm font-medium transition-all shadow-[0_0_15px_rgba(37,99,235,0.4)] hover:shadow-[0_0_20px_rgba(37,99,235,0.6)]"
+          >
+            <Bluetooth className="w-4 h-4" />
+            Recolector Bluetooth
+          </Link>
+
+          <div className="flex items-center gap-4 bg-neutral-900 border border-white/5 rounded-full px-5 py-2 text-sm shadow-inner">
+            <span className="flex items-center gap-2">
+              {error ? (
+                <span className="flex items-center gap-2 text-red-400">
+                  <WifiOff className="w-4 h-4" /> Desconectado
                 </span>
-                Recibiendo Datos
-              </span>
-            )}
-          </span>
-          <div className="w-px h-4 bg-white/10"></div>
-          <span className="text-neutral-400 flex items-center gap-2">
-            <RefreshCw className={`w-4 h-4 ${!error && "animate-spin-slow"}`} /> 
-            {lastUpdated ? format(lastUpdated, "HH:mm:ss") : "Esperando..."}
-          </span>
+              ) : (
+                <span className="flex items-center gap-2 text-emerald-400">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  Recibiendo Datos
+                </span>
+              )}
+            </span>
+            <div className="w-px h-4 bg-white/10"></div>
+            <span className="text-neutral-400 flex items-center gap-2">
+              <RefreshCw className={`w-4 h-4 ${!error && "animate-spin-slow"}`} /> 
+              {lastUpdated ? format(lastUpdated, "HH:mm:ss") : "Esperando..."}
+            </span>
+          </div>
         </div>
       </header>
 
