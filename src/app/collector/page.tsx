@@ -2,17 +2,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { 
-  Bluetooth, 
-  LayoutDashboard, 
-  RefreshCw, 
-  Database,
-  Search,
-  Wifi,
-  WifiOff,
-  CloudUpload,
-  Activity,
-  AlertCircle
+import {
+  Bluetooth, LayoutDashboard, RefreshCw, Database,
+  Search, Wifi, WifiOff, CloudUpload, Activity, AlertCircle, CheckCircle2, Droplets
 } from "lucide-react";
 import Link from "next/link";
 
@@ -22,362 +14,312 @@ interface PendingRead {
   timestamp: string;
 }
 
-export default function MobileCollectorPWA() {
+export default function MobileCollector() {
   const [device, setDevice] = useState<any | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isOnline, setIsOnline] = useState<boolean>(true);
+  const [isOnline, setIsOnline] = useState(true);
   const [pendingSync, setPendingSync] = useState<PendingRead[]>([]);
   const [isWebBluetoothSupported, setIsWebBluetoothSupported] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Load Initial Network & Cache State
   useEffect(() => {
-    setIsWebBluetoothSupported(typeof navigator !== 'undefined' && !!(navigator as any).bluetooth);
+    setIsWebBluetoothSupported(typeof navigator !== "undefined" && !!(navigator as any).bluetooth);
     setIsOnline(navigator.onLine);
 
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    // Cargar cola de pendiente desde LocalStorage (Modo Offline)
-    const stored = localStorage.getItem('cenote_offline_queue');
+    const stored = localStorage.getItem("lympha_offline_queue");
     if (stored) {
-      try {
-         setPendingSync(JSON.parse(stored));
-      } catch (e) {
-         console.error("Cache corrupted");
-      }
+      try { setPendingSync(JSON.parse(stored)); } catch { /* ignore */ }
     }
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
     };
   }, []);
 
-  // Guarda en caché cada vez que hay cambios en la cola
   useEffect(() => {
-    localStorage.setItem('cenote_offline_queue', JSON.stringify(pendingSync));
+    localStorage.setItem("lympha_offline_queue", JSON.stringify(pendingSync));
   }, [pendingSync]);
 
-  // Si se vuelve a conectar a internet y hay datos pendientes, Sincronizar automáticamente.
   useEffect(() => {
-    if (isOnline && pendingSync.length > 0 && !isSyncing) {
-      syncPendingData();
-    }
-  }, [isOnline, pendingSync.length]);
+    if (isOnline && pendingSync.length > 0 && !isSyncing) syncAll();
+  }, [isOnline]);
 
   const connectBluetooth = async () => {
     if (!isWebBluetoothSupported) {
-      alert("Navegador no soporta Bluetooth Web. Usa Chrome para Android/PC.");
+      alert("Web Bluetooth solo funciona en Chrome para Android o PC.");
       return;
     }
-
     setIsConnecting(true);
-
     try {
-      const bDevice = await (navigator as any).bluetooth.requestDevice({
+      const dev = await (navigator as any).bluetooth.requestDevice({
         acceptAllDevices: true,
         optionalServices: [
-          '0000ffe0-0000-1000-8000-00805f9b34fb',
-          '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
-        ]
+          "0000ffe0-0000-1000-8000-00805f9b34fb",
+          "6e400001-b5a3-f393-e0a9-e50e24dcca9e",
+        ],
       });
-
-      setDevice(bDevice);
-      bDevice.addEventListener('gattserverdisconnected', () => setDevice(null));
-
-      const server = await bDevice.gatt?.connect();
+      setDevice(dev);
+      dev.addEventListener("gattserverdisconnected", () => setDevice(null));
+      const server = await dev.gatt?.connect();
       const services = await server?.getPrimaryServices();
-
-      for (const service of services || []) {
-        const characteristics = await service.getCharacteristics();
-        for (const characteristic of characteristics) {
-          if (characteristic.properties.notify || characteristic.properties.indicate) {
-            await characteristic.startNotifications();
-            characteristic.addEventListener('characteristicvaluechanged', handleBluetoothData);
+      for (const svc of services || []) {
+        const chars = await svc.getCharacteristics();
+        for (const c of chars) {
+          if (c.properties.notify || c.properties.indicate) {
+            await c.startNotifications();
+            c.addEventListener("characteristicvaluechanged", handleBTData);
           }
         }
       }
-    } catch (error: any) {
-      console.warn(`Operación cancelada o fallida: ${error.message}`);
+    } catch (e: any) {
+      console.warn(e.message);
     } finally {
       setIsConnecting(false);
     }
   };
 
-  const handleBluetoothData = (event: any) => {
-    const value = event.target.value;
-    const decoder = new TextDecoder('utf-8');
-    const csvString = decoder.decode(value).trim();
-    if (csvString) processCSVData(csvString);
+  const handleBTData = (event: any) => {
+    const csv = new TextDecoder("utf-8").decode(event.target.value).trim();
+    if (csv) parseCSV(csv);
   };
 
-  const processCSVData = (csv: string) => {
-    // Expected incoming CSV format: pH, turbidity, temp
-    const parts = csv.split(',').map(p => parseFloat(p.trim()));
+  const parseCSV = (csv: string) => {
+    const parts = csv.split(",").map(p => parseFloat(p.trim()));
     if (parts.length >= 3 && !parts.some(isNaN)) {
-      const payload = {
-        ph: parts[0],
-        turbidez: parts[1],
-        temperatura: parts[2]
-      };
-      
-      const newRead: PendingRead = {
+      const read: PendingRead = {
         id: Math.random().toString(36).substr(2, 9),
-        data: payload,
-        timestamp: new Date().toISOString()
+        data: { ph: parts[0], turbidez: parts[1], temperatura: parts[2] },
+        timestamp: new Date().toISOString(),
       };
-
-      setPendingSync(prev => [newRead, ...prev]);
+      setPendingSync(prev => [read, ...prev]);
     }
   };
 
   const simulateData = () => {
     const csv = `${(Math.random() * 2 + 6.5).toFixed(2)},${(Math.random() * 3 + 1).toFixed(2)},${(Math.random() * 5 + 24).toFixed(1)}`;
-    processCSVData(csv);
+    parseCSV(csv);
   };
 
-  const syncPendingData = async () => {
+  const syncAll = async () => {
     setIsSyncing(true);
     for (const item of pendingSync) {
       try {
         const res = await fetch("/api/sensors", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(item.data)
+          body: JSON.stringify(item.data),
         });
-
-        if (res.ok) {
-           // Si se guardó, lo sacamos de la cola
-           setPendingSync(prev => prev.filter(p => p.id !== item.id));
-        }
-      } catch (e) {
-        console.error("Fallo de red en plena subida, guardando en caché restante");
-        break; 
-      }
+        if (res.ok) setPendingSync(prev => prev.filter(p => p.id !== item.id));
+      } catch { break; }
     }
     setIsSyncing(false);
   };
 
-  // UI helpers
   const clearCache = () => {
-    if (confirm("¿Estás seguro de que quieres borrar todos los datos no sincronizados localmente? No se recuperarán.")) {
-      setPendingSync([]);
-    }
+    if (confirm("¿Borrar todos los datos locales no sincronizados?")) setPendingSync([]);
   };
 
-  // --- RENDERING ---
-  const lastRead = pendingSync.length > 0 ? pendingSync[0].data : null;
+  const lastRead = pendingSync[0]?.data ?? null;
+
+  const getRecommendations = (d: any) => {
+    const recs = [];
+    if (!d) return recs;
+    if (d.ph > 8.0) recs.push({ icon: "🚫", color: "var(--lympha-terracota)", bg: "#A34A3E15", title: `pH Alcalino Alto (${d.ph})`, desc: "El nivel de pH supera el límite saludable. Causa probable: cremas solares y jabones de turistas. Recomendación: restringir acceso temporal." });
+    if (d.ph >= 6.5 && d.ph <= 8.0) recs.push({ icon: "✅", color: "var(--lympha-green)", bg: "#4A7C5915", title: `pH Óptimo (${d.ph})`, desc: "El agua mantiene un espectro neutro y purificado. Excelente condición biológica para fauna y flora endémica." });
+    if (d.turbidez > 4) recs.push({ icon: "⚠️", color: "var(--lympha-mustard)", bg: "#C9A22715", title: `Visibilidad Reducida (${d.turbidez} NTU)`, desc: "Agua turbia detectada. Revisar posibles deslaves, obras de construcción cercanas o actividad agrícola que filtre al manto freático." });
+    if (d.temperatura > 26.5) recs.push({ icon: "🌡️", color: "#d97706", bg: "#d9770615", title: `Temperatura Elevada (${d.temperatura}°C)`, desc: "Temperaturas mayores a 26.5°C favorecen la proliferación de algas nocivas que asfixian a la fauna del cenote." });
+    return recs;
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-200 p-4 md:p-8">
-      
-      {/* HEADER START */}
-      <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="min-h-screen" style={{ backgroundColor: "var(--lympha-sand)" }}>
+
+      {/* HEADER */}
+      <header style={{ backgroundColor: "var(--lympha-walnut)" }}
+        className="px-4 md:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
         <div className="flex items-center gap-3">
-          <Link 
-            href="/"
-            className="p-3 bg-white shadow-sm border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors"
-          >
-            <LayoutDashboard className="w-5 h-5 text-slate-600" />
+          <Link href="/" className="p-2 rounded-xl transition-opacity hover:opacity-70"
+            style={{ backgroundColor: "#C9A22720" }}>
+            <LayoutDashboard className="w-5 h-5" style={{ color: "var(--lympha-amber)" }} />
           </Link>
           <div>
-            <h1 className="text-xl md:text-2xl font-bold text-slate-900">
-              {isOnline ? "Panel de Recomendaciones" : "Consola de Extracción (Offline)"}
-            </h1>
-            <p className="text-sm text-slate-500 font-medium">Boya de Monitoreo Cenote</p>
+            <h1 className="text-lg font-bold text-white serif-italic">Recolector de Campo</h1>
+            <p className="text-xs font-medium" style={{ color: "#C9A22799" }}>
+              {isOnline ? "Conectado · Panel de Recomendaciones" : "Modo Offline · Almacenamiento Local"}
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className={`px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 shadow-sm border ${
-            isOnline ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-orange-50 border-orange-200 text-orange-700"
-          }`}>
-             {isOnline ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
-             {isOnline ? "ONLINE" : "MODO OFF-THE-GRID"}
-          </div>
+        <div className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm border ${isOnline ? "border-green-700/30" : "border-amber-700/30"}`}
+          style={{ backgroundColor: isOnline ? "#4A7C5920" : "#C9A22720", color: isOnline ? "#4A7C59" : "#C9A227" }}>
+          {isOnline ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+          {isOnline ? "ONLINE" : "OFF-THE-GRID"}
         </div>
       </header>
 
-      {/* CORE GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* BLUETOOTH & SYNC CARD (Col 4) */}
-        <div className="lg:col-span-4 space-y-6">
-          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8">
-            <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-              <Bluetooth className="w-5 h-5 text-blue-500" /> Vínculo de Campo
-            </h2>
+      {/* BODY */}
+      <div className="p-4 md:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-            <div className="space-y-4">
-              <button
-                onClick={connectBluetooth}
-                disabled={isConnecting || !isWebBluetoothSupported}
-                className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl font-bold shadow-md shadow-blue-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-              >
+        {/* PANEL IZQUIERDO */}
+        <div className="lg:col-span-4 space-y-5">
+
+          {/* Bluetooth Card */}
+          <div className="rounded-2xl p-6 shadow-sm border"
+            style={{ backgroundColor: "var(--lympha-walnut)", borderColor: "#C9A22730" }}>
+            <h2 className="font-bold mb-5 flex items-center gap-2 text-white serif-italic text-lg">
+              <Bluetooth style={{ color: "var(--lympha-amber)" }} className="w-5 h-5" />
+              Vínculo de Campo
+            </h2>
+            <div className="space-y-3">
+              <button onClick={connectBluetooth} disabled={isConnecting || !isWebBluetoothSupported}
+                className="w-full py-4 rounded-2xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 shadow-md"
+                style={{ backgroundColor: "var(--lympha-amber)", color: "var(--lympha-walnut)" }}>
                 {isConnecting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
                 {isConnecting ? "Buscando BLE..." : "Conectar Boya"}
               </button>
 
-              <button
-                onClick={simulateData}
-                className="w-full py-3 bg-white border-2 border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
-              >
-                Simular Inyección Local
+              <button onClick={simulateData}
+                className="w-full py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 border flex items-center justify-center gap-2"
+                style={{ backgroundColor: "#C9A22710", borderColor: "#C9A22740", color: "#C9A227" }}>
+                Simular Dato (Prueba)
               </button>
             </div>
 
             {device && (
-              <div className="mt-4 p-4 border border-blue-100 bg-blue-50 rounded-xl flex items-center gap-3">
-                <Bluetooth className="w-5 h-5 text-blue-600" />
-                <span className="text-sm font-bold text-blue-900">{device.name || "ESP32 Conectado"}</span>
+              <div className="mt-4 p-3 rounded-xl flex items-center gap-3 border"
+                style={{ backgroundColor: "#4A7C5915", borderColor: "#4A7C5940" }}>
+                <Bluetooth className="w-5 h-5" style={{ color: "#4A7C59" }} />
+                <p className="font-bold text-sm text-white">{device.name || "ESP32 Conectado"}</p>
               </div>
             )}
           </div>
 
-          {/* CACHE METRICS */}
-          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+          {/* Cache Card */}
+          <div className="rounded-2xl p-5 shadow-sm border"
+            style={{ backgroundColor: "var(--lympha-cream)", borderColor: "#C9A22730" }}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <Database className="w-4 h-4 text-emerald-500" /> Memoria Caché
+              <h3 className="font-bold flex items-center gap-2 text-sm"
+                style={{ color: "var(--lympha-walnut)" }}>
+                <Database className="w-4 h-4" style={{ color: "var(--lympha-amber)" }} />
+                Memoria Local
               </h3>
-              <span className="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-1 rounded-md">
-                {pendingSync.length} registros
+              <span className="text-xs font-black px-2.5 py-1 rounded-full"
+                style={{ backgroundColor: "#C9A22715", color: "var(--lympha-amber)" }}>
+                {pendingSync.length} reg.
               </span>
             </div>
-            
+
             {pendingSync.length > 0 ? (
-              <div className="space-y-4">
-                 <button 
-                  onClick={clearCache}
-                  className="w-full text-sm font-bold text-red-500 py-2 bg-red-50 hover:bg-red-100 rounded-xl transition"
-                 >
-                   Purgar Caché Local
-                 </button>
-                 
-                 {isOnline && (
-                   <button 
-                    onClick={syncPendingData}
-                    disabled={isSyncing}
-                    className="w-full flex items-center justify-center gap-2 text-sm font-bold text-white py-3 bg-slate-800 hover:bg-slate-900 rounded-xl transition shadow-md"
-                   >
-                     {isSyncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CloudUpload className="w-4 h-4" />}
-                     {isSyncing ? "Subiendo..." : "Forzar Sincronización"}
-                   </button>
-                 )}
+              <div className="space-y-3">
+                <button onClick={clearCache}
+                  className="w-full text-sm font-bold py-2 rounded-xl transition"
+                  style={{ color: "var(--lympha-terracota)", backgroundColor: "#A34A3E10" }}>
+                  Purgar Caché
+                </button>
+                {isOnline && (
+                  <button onClick={syncAll} disabled={isSyncing}
+                    className="w-full flex items-center justify-center gap-2 text-sm font-bold py-3 rounded-xl text-white shadow-md transition active:scale-95"
+                    style={{ backgroundColor: "var(--lympha-walnut)" }}>
+                    {isSyncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CloudUpload className="w-4 h-4" />}
+                    {isSyncing ? "Subiendo..." : "Sincronizar Ahora"}
+                  </button>
+                )}
               </div>
             ) : (
-              <p className="text-sm text-slate-500 font-medium text-center py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                Todo está subido a la nube.
+              <p className="text-xs font-bold text-center py-4 rounded-xl border border-dashed"
+                style={{ borderColor: "#C9A22740", color: "#0F172A60" }}>
+                Todo sincronizado ✓
               </p>
             )}
           </div>
         </div>
 
-        {/* DATA & DASHBOARD AREA (Col 8) */}
-        <div className="lg:col-span-8 flex flex-col gap-6">
-          
-          {/* OFFLINE ONLY: Last local read details */}
+        {/* PANEL DERECHO */}
+        <div className="lg:col-span-8">
+
+          {/* OFFLINE VIEW */}
           {!isOnline && (
-            <div className="bg-white rounded-3xl shadow-sm border border-orange-200 p-8 h-full flex flex-col justify-center relative overflow-hidden">
-               <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-full blur-3xl" />
-               <div className="relative z-10">
-                 <h2 className="text-xl font-bold flex items-center gap-2 mb-2 text-slate-800">
-                    <Activity className="w-6 h-6 text-orange-500" /> Última Extracción de Campo
-                 </h2>
-                 <p className="text-slate-500 text-sm mb-8 font-medium">Buscando datos localmente vía Caché. Conéctate a WiFi para el análisis inteligente.</p>
-
-                 {lastRead ? (
-                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                     <div className="p-6 border border-slate-100 bg-slate-50 rounded-2xl shadow-sm">
-                       <p className="text-sm font-bold text-slate-400 mb-1">pH Registrado</p>
-                       <p className="text-4xl font-black text-slate-800">{lastRead.ph}</p>
-                     </div>
-                     <div className="p-6 border border-slate-100 bg-slate-50 rounded-2xl shadow-sm">
-                       <p className="text-sm font-bold text-slate-400 mb-1">Turbidez</p>
-                       <p className="text-4xl font-black text-slate-800">{lastRead.turbidez}</p>
-                     </div>
-                     <div className="p-6 border border-slate-100 bg-slate-50 rounded-2xl shadow-sm">
-                       <p className="text-sm font-bold text-slate-400 mb-1">Temperatura</p>
-                       <p className="text-4xl font-black text-slate-800">{lastRead.temperatura}°C</p>
-                     </div>
-                   </div>
-                 ) : (
-                   <div className="flex flex-col items-center justify-center p-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 font-bold">
-                     Ningún dato descargado hoy
-                   </div>
-                 )}
-               </div>
-            </div>
-          )}
-
-          {/* ONLINE ONLY: Smart Dashboard Recommendations */}
-          {isOnline && (
-            <div className="bg-white rounded-3xl shadow-sm border border-emerald-200 p-8 h-full">
-              <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800 mb-6 border-b border-slate-100 pb-4">
-                💡 Base de Datos Inteligente — Recomendaciones Actionables
+            <div className="rounded-2xl p-6 md:p-8 shadow-sm border h-full"
+              style={{ backgroundColor: "var(--lympha-cream)", borderColor: "#C9A22730" }}>
+              <h2 className="text-xl font-bold serif-italic mb-2 flex items-center gap-2"
+                style={{ color: "var(--lympha-walnut)" }}>
+                <Activity className="w-6 h-6" style={{ color: "var(--lympha-amber)" }} />
+                Última Extracción de Campo
               </h2>
-              
-              <div className="space-y-4">
-                {!lastRead ? (
-                  <div className="bg-blue-50 border border-blue-100 rounded-2xl p-6 flex items-start gap-4">
-                     <AlertCircle className="w-6 h-6 text-blue-500 flex-shrink-0" />
-                     <div>
-                       <h4 className="font-bold text-blue-900 text-lg">En Espera de Datos Locales</h4>
-                       <p className="text-blue-700 text-sm mt-1">Conéctate a la boya o descarga datos del caché para que la nube pueda generar una lectura situacional. Ve al menú principal para usar los simuladores predictivos.</p>
-                     </div>
-                  </div>
-                ) : (
-                  <>
-                     {/* Dynamic Recommendations based on Last Read */}
-                     {lastRead.ph > 8.0 && (
-                        <div className="bg-rose-50 border border-rose-100 rounded-2xl p-6 flex items-start gap-4">
-                           <AlertCircle className="w-6 h-6 text-rose-500 flex-shrink-0" />
-                           <div>
-                             <h4 className="font-bold text-rose-900 text-lg">Alerta: Nivel Alcalino Alto (pH {lastRead.ph})</h4>
-                             <p className="text-rose-700 text-sm mt-1 font-medium">El pH ha superado el límite sano. Recomendación civil: Restringir acceso al cenote. Causa probable: Exceso de turistas utilizando cremas, jabones corporales o bloqueadores solares de alto impacto.</p>
-                           </div>
-                        </div>
-                     )}
+              <p className="text-sm font-medium mb-8" style={{ color: "#0F172A60" }}>
+                Datos almacenados localmente. Conéctate a WiFi para análisis inteligente.
+              </p>
 
-                     {lastRead.ph <= 8.0 && lastRead.ph >= 6.5 && (
-                        <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 flex items-start gap-4">
-                           <CheckCircle2 className="w-6 h-6 text-emerald-500 flex-shrink-0" />
-                           <div>
-                             <h4 className="font-bold text-emerald-900 text-lg">Acidez Óptima (pH {lastRead.ph})</h4>
-                             <p className="text-emerald-700 text-sm mt-1 font-medium">El agua se mantiene en un espectro purificado y neutro. Excelente salud biológica.</p>
-                           </div>
-                        </div>
-                     )}
-
-                     {lastRead.turbidez > 4.0 && (
-                       <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6 flex items-start gap-4">
-                           <AlertCircle className="w-6 h-6 text-amber-500 flex-shrink-0" />
-                           <div>
-                             <h4 className="font-bold text-amber-900 text-lg">Visibilidad Crítica (Turbidez {lastRead.turbidez} NTU)</h4>
-                             <p className="text-amber-700 text-sm mt-1 font-medium">El cenote sufre de agua embarrada. Recomendación ecológica: Revisar deslaves recientes o construcciones masivas cavando cerca del manto freático subterráneo.</p>
-                           </div>
-                        </div>
-                     )}
-
-                     {lastRead.temperatura > 26.5 && (
-                       <div className="bg-orange-50 border border-orange-100 rounded-2xl p-6 flex items-start gap-4">
-                           <AlertCircle className="w-6 h-6 text-orange-500 flex-shrink-0" />
-                           <div>
-                             <h4 className="font-bold text-orange-900 text-lg">Calentamiento Acuoso (Temp {lastRead.temperatura} °C)</h4>
-                             <p className="text-orange-700 text-sm mt-1 font-medium">Cuidado con la proliferación de algas nocivas. Temperaturas encima de 26°C disparan la biomasa verde asfixiando a la fauna endémica del cenote.</p>
-                           </div>
-                        </div>
-                     )}
-                  </>
-                )}
-              </div>
+              {lastRead ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {[["pH", lastRead.ph], ["Turbidez NTU", lastRead.turbidez], ["Temp °C", lastRead.temperatura]].map(([label, val]) => (
+                    <div key={label as string} className="rounded-2xl p-6 text-center"
+                      style={{ backgroundColor: "var(--lympha-walnut)" }}>
+                      <p className="text-xs font-bold uppercase tracking-widest mb-1"
+                        style={{ color: "#C9A22780" }}>{label}</p>
+                      <p className="text-5xl font-black serif-italic"
+                        style={{ color: "var(--lympha-amber)" }}>{(val as number).toFixed(1)}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-40 rounded-2xl border-2 border-dashed"
+                  style={{ borderColor: "#C9A22740" }}>
+                  <Droplets className="w-10 h-10 mb-2" style={{ color: "#C9A22740" }} />
+                  <p className="text-sm font-bold" style={{ color: "#0F172A50" }}>Sin lecturas descargadas hoy</p>
+                </div>
+              )}
             </div>
           )}
 
+          {/* ONLINE VIEW: Recommendations */}
+          {isOnline && (
+            <div className="rounded-2xl p-6 md:p-8 shadow-sm border h-full"
+              style={{ backgroundColor: "var(--lympha-cream)", borderColor: "#4A7C5930" }}>
+              <h2 className="text-xl font-bold serif-italic mb-1"
+                style={{ color: "var(--lympha-walnut)" }}>
+                Diagnóstico Inteligente
+              </h2>
+              <p className="text-sm font-medium mb-6" style={{ color: "#0F172A60" }}>
+                Análisis automático basado en la última lectura de la boya
+              </p>
+
+              {!lastRead ? (
+                <div className="p-5 rounded-2xl border flex items-start gap-3"
+                  style={{ backgroundColor: "#0EA5E915", borderColor: "#0EA5E930" }}>
+                  <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "var(--lympha-iot)" }} />
+                  <div>
+                    <p className="font-bold text-sm" style={{ color: "var(--lympha-slate)" }}>
+                      En espera de datos
+                    </p>
+                    <p className="text-xs font-medium mt-1" style={{ color: "#0F172A70" }}>
+                      Conecta la boya o simula un dato para activar el diagnóstico.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {getRecommendations(lastRead).map((rec, i) => (
+                    <div key={i} className="p-4 md:p-5 rounded-2xl border flex items-start gap-4"
+                      style={{ backgroundColor: rec.bg, borderColor: `${rec.color}30` }}>
+                      <span className="text-2xl leading-none">{rec.icon}</span>
+                      <div>
+                        <p className="font-bold text-sm" style={{ color: rec.color }}>{rec.title}</p>
+                        <p className="text-xs font-medium mt-1 leading-relaxed"
+                          style={{ color: "#0F172A80" }}>{rec.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
