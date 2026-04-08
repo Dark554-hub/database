@@ -1,351 +1,385 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Bluetooth, 
-  BluetoothOff, 
   LayoutDashboard, 
   RefreshCw, 
-  Zap, 
   Database,
   Search,
-  CheckCircle2,
-  AlertCircle,
-  Terminal
+  Wifi,
+  WifiOff,
+  CloudUpload,
+  Activity,
+  AlertCircle
 } from "lucide-react";
 import Link from "next/link";
 
-interface LogEntry {
+interface PendingRead {
   id: string;
-  timestamp: Date;
-  message: string;
-  type: "info" | "success" | "error" | "data";
+  data: any;
+  timestamp: string;
 }
 
-export default function BluetoothCollector() {
+export default function MobileCollectorPWA() {
   const [device, setDevice] = useState<any | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [status, setStatus] = useState<"disconnected" | "connected" | "syncing">("disconnected");
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [lastData, setLastData] = useState<any>(null);
+  const [isOnline, setIsOnline] = useState<boolean>(true);
+  const [pendingSync, setPendingSync] = useState<PendingRead[]>([]);
   const [isWebBluetoothSupported, setIsWebBluetoothSupported] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  const logsEndRef = useRef<HTMLDivElement>(null);
-
+  // Load Initial Network & Cache State
   useEffect(() => {
     setIsWebBluetoothSupported(typeof navigator !== 'undefined' && !!(navigator as any).bluetooth);
-    addLog("Sistema iniciado. Listo para recolectar datos.", "info");
+    setIsOnline(navigator.onLine);
+
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Cargar cola de pendiente desde LocalStorage (Modo Offline)
+    const stored = localStorage.getItem('cenote_offline_queue');
+    if (stored) {
+      try {
+         setPendingSync(JSON.parse(stored));
+      } catch (e) {
+         console.error("Cache corrupted");
+      }
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
+  // Guarda en caché cada vez que hay cambios en la cola
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logs]);
+    localStorage.setItem('cenote_offline_queue', JSON.stringify(pendingSync));
+  }, [pendingSync]);
 
-  const addLog = (message: string, type: LogEntry["type"]) => {
-    const newLog: LogEntry = {
-      id: Math.random().toString(36).substr(2, 9),
-      timestamp: new Date(),
-      message,
-      type
-    };
-    setLogs(prev => [...prev.slice(-49), newLog]);
-  };
+  // Si se vuelve a conectar a internet y hay datos pendientes, Sincronizar automáticamente.
+  useEffect(() => {
+    if (isOnline && pendingSync.length > 0 && !isSyncing) {
+      syncPendingData();
+    }
+  }, [isOnline, pendingSync.length]);
 
   const connectBluetooth = async () => {
     if (!isWebBluetoothSupported) {
-      addLog("Web Bluetooth no es compatible con este navegador.", "error");
+      alert("Navegador no soporta Bluetooth Web. Usa Chrome para Android/PC.");
       return;
     }
 
     setIsConnecting(true);
-    addLog("Iniciando escaneo de dispositivos Bluetooth...", "info");
 
     try {
-      // Intentamos aceptar todos los dispositivos para máxima compatibilidad
-      const device = await (navigator as any).bluetooth.requestDevice({
+      const bDevice = await (navigator as any).bluetooth.requestDevice({
         acceptAllDevices: true,
-        // Algunos servicios comunes que suelen usar los ESP32 (UART, Generic)
         optionalServices: [
-          '0000ffe0-0000-1000-8000-00805f9b34fb', // HM-10
-          '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART Service
+          '0000ffe0-0000-1000-8000-00805f9b34fb',
+          '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
         ]
       });
 
-      setDevice(device);
-      addLog(`Dispositivo encontrado: ${device.name || "Sin nombre"}`, "success");
+      setDevice(bDevice);
+      bDevice.addEventListener('gattserverdisconnected', () => setDevice(null));
 
-      device.addEventListener('gattserverdisconnected', onDisconnected);
-
-      addLog("Conectando al servidor GATT...", "info");
-      const server = await device.gatt?.connect();
-      
-      setStatus("connected");
-      addLog("Conexión establecida correctamente.", "success");
-
-      // Buscar servicios disponibles
+      const server = await bDevice.gatt?.connect();
       const services = await server?.getPrimaryServices();
-      addLog(`Servicios encontrados: ${services?.length || 0}`, "info");
 
       for (const service of services || []) {
-        addLog(`Explorando servicio: ${service.uuid}`, "info");
         const characteristics = await service.getCharacteristics();
-        
         for (const characteristic of characteristics) {
           if (characteristic.properties.notify || characteristic.properties.indicate) {
-            addLog(`Suscrito a notificaciones: ${characteristic.uuid}`, "success");
             await characteristic.startNotifications();
             characteristic.addEventListener('characteristicvaluechanged', handleBluetoothData);
           }
         }
       }
-
     } catch (error: any) {
-      addLog(`Error: ${error.message}`, "error");
+      console.warn(`Operación cancelada o fallida: ${error.message}`);
+    } finally {
       setIsConnecting(false);
     }
-  };
-
-  const onDisconnected = () => {
-    setDevice(null);
-    setStatus("disconnected");
-    setIsConnecting(false);
-    addLog("Dispositivo desconectado.", "error");
   };
 
   const handleBluetoothData = (event: any) => {
     const value = event.target.value;
     const decoder = new TextDecoder('utf-8');
     const csvString = decoder.decode(value).trim();
-    
-    if (csvString) {
-      addLog(`Dato recibido (Raw): ${csvString}`, "data");
-      processCSVData(csvString);
-    }
+    if (csvString) processCSVData(csvString);
   };
 
   const processCSVData = (csv: string) => {
-    // Ejemplo esperado: pH,Temp,Turbidez -> "7.2,25.5,10.1"
+    // Expected incoming CSV format: pH, turbidity, temp
     const parts = csv.split(',').map(p => parseFloat(p.trim()));
-    
-    if (parts.length >= 2 && !parts.some(isNaN)) {
-      const payload: any = {
+    if (parts.length >= 3 && !parts.some(isNaN)) {
+      const payload = {
         ph: parts[0],
-        temperatura: parts[1],
+        turbidez: parts[1],
+        temperatura: parts[2]
       };
       
-      if (parts[2] !== undefined) payload.turbidez = parts[2];
-      if (parts[3] !== undefined) payload.nitratos = parts[3];
+      const newRead: PendingRead = {
+        id: Math.random().toString(36).substr(2, 9),
+        data: payload,
+        timestamp: new Date().toISOString()
+      };
 
-      setLastData(payload);
-      syncToDatabase(payload);
-    } else {
-      addLog("Formato CSV inválido o incompleto.", "error");
-    }
-  };
-
-  const syncToDatabase = async (payload: any) => {
-    setStatus("syncing");
-    try {
-      const res = await fetch("/api/sensors", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok) {
-        addLog("Sincronizado con Vercel/Supabase con éxito.", "success");
-      } else {
-        addLog("Error al sincronizar con la API.", "error");
-      }
-    } catch (err) {
-      addLog("Error de red al intentar sincronizar.", "error");
-    } finally {
-      setStatus("connected");
+      setPendingSync(prev => [newRead, ...prev]);
     }
   };
 
   const simulateData = () => {
-    const ph = 7 + (Math.random() * 0.4 - 0.2);
-    const temp = 24 + (Math.random() * 2);
-    const turb = 10 + (Math.random() * 5);
-    const csv = `${ph.toFixed(2)},${temp.toFixed(1)},${turb.toFixed(1)}`;
-    
-    addLog(`Simulando recepción CSV: ${csv}`, "info");
+    const csv = `${(Math.random() * 2 + 6.5).toFixed(2)},${(Math.random() * 3 + 1).toFixed(2)},${(Math.random() * 5 + 24).toFixed(1)}`;
     processCSVData(csv);
   };
 
+  const syncPendingData = async () => {
+    setIsSyncing(true);
+    for (const item of pendingSync) {
+      try {
+        const res = await fetch("/api/sensors", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(item.data)
+        });
+
+        if (res.ok) {
+           // Si se guardó, lo sacamos de la cola
+           setPendingSync(prev => prev.filter(p => p.id !== item.id));
+        }
+      } catch (e) {
+        console.error("Fallo de red en plena subida, guardando en caché restante");
+        break; 
+      }
+    }
+    setIsSyncing(false);
+  };
+
+  // UI helpers
+  const clearCache = () => {
+    if (confirm("¿Estás seguro de que quieres borrar todos los datos no sincronizados localmente? No se recuperarán.")) {
+      setPendingSync([]);
+    }
+  };
+
+  // --- RENDERING ---
+  const lastRead = pendingSync.length > 0 ? pendingSync[0].data : null;
+
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 p-4 md:p-8 font-sans">
-      {/* Header */}
-      <header className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-6">
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-200 p-4 md:p-8">
+      
+      {/* HEADER START */}
+      <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link 
             href="/"
-            className="p-3 bg-neutral-900 hover:bg-neutral-800 rounded-xl border border-white/5 transition-colors"
+            className="p-3 bg-white shadow-sm border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors"
           >
-            <LayoutDashboard className="w-6 h-6 text-neutral-400" />
+            <LayoutDashboard className="w-5 h-5 text-slate-600" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
-              Recolector de Datos
+            <h1 className="text-xl md:text-2xl font-bold text-slate-900">
+              {isOnline ? "Panel de Recomendaciones" : "Consola de Extracción (Offline)"}
             </h1>
-            <p className="text-sm text-neutral-400 flex items-center gap-2 mt-1">
-              <Bluetooth className="w-4 h-4" /> Enlace vía Web Bluetooth API
-            </p>
+            <p className="text-sm text-slate-500 font-medium">Boya de Monitoreo Cenote</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          {!isWebBluetoothSupported && (
-            <div className="px-4 py-2 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4" /> Navegador no compatible
-            </div>
-          )}
-          <div className={`px-4 py-2 rounded-full text-xs font-medium border flex items-center gap-2 transition-all ${
-            status === "disconnected" ? "bg-neutral-900 border-white/5 text-neutral-500" :
-            status === "connected" ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" :
-            "bg-blue-500/10 border-blue-500/20 text-blue-400 animate-pulse"
+          <div className={`px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 shadow-sm border ${
+            isOnline ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-orange-50 border-orange-200 text-orange-700"
           }`}>
-            <span className={`h-2 w-2 rounded-full ${
-              status === "disconnected" ? "bg-neutral-600" :
-              status === "connected" ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" :
-              "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"
-            }`} />
-            {status === "disconnected" ? "Desconectado" :
-             status === "connected" ? "Boya Conectada" : "Sincronizando..."}
+             {isOnline ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+             {isOnline ? "ONLINE" : "MODO OFF-THE-GRID"}
           </div>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Panel Izquierdo: Acciones y Estado */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-neutral-900 rounded-3xl border border-white/5 p-8 relative overflow-hidden group">
-            {/* Background decoration */}
-            <div className="absolute -right-8 -top-8 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-all duration-500" />
-            
-            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-              <Zap className="w-5 h-5 text-blue-400" /> Control de Enlace
+      {/* CORE GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* BLUETOOTH & SYNC CARD (Col 4) */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8">
+            <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+              <Bluetooth className="w-5 h-5 text-blue-500" /> Vínculo de Campo
             </h2>
 
             <div className="space-y-4">
               <button
                 onClick={connectBluetooth}
-                disabled={isConnecting || status !== "disconnected" || !isWebBluetoothSupported}
-                className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-2xl font-bold text-lg transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)] flex items-center justify-center gap-3 active:scale-95"
+                disabled={isConnecting || !isWebBluetoothSupported}
+                className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl font-bold shadow-md shadow-blue-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
               >
-                {isConnecting ? (
-                  <RefreshCw className="w-6 h-6 animate-spin" />
-                ) : (
-                  <Search className="w-6 h-6" />
-                )}
-                {isConnecting ? "Buscando..." : "Escanear Boya"}
+                {isConnecting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+                {isConnecting ? "Buscando BLE..." : "Conectar Boya"}
               </button>
 
               <button
                 onClick={simulateData}
-                className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-2xl font-medium transition-all flex items-center justify-center gap-2 border border-white/5 active:scale-95"
+                className="w-full py-3 bg-white border-2 border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
               >
-                <RefreshCw className="w-4 h-4" />
-                Simular Dato (Prueba)
+                Simular Inyección Local
               </button>
-
-              {device && (
-                <div className="mt-6 p-4 bg-neutral-800/50 rounded-2xl border border-white/5 animate-in fade-in slide-in-from-bottom-2">
-                  <p className="text-xs text-neutral-500 uppercase tracking-widest mb-2">Dispositivo Vinculado</p>
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-emerald-500/20 rounded-lg">
-                      <Bluetooth className="w-5 h-5 text-emerald-400" />
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-emerald-100">{device.name || "ESP32 Sensor Node"}</h4>
-                      <p className="text-xs text-neutral-400">ID: {device.id}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
+
+            {device && (
+              <div className="mt-4 p-4 border border-blue-100 bg-blue-50 rounded-xl flex items-center gap-3">
+                <Bluetooth className="w-5 h-5 text-blue-600" />
+                <span className="text-sm font-bold text-blue-900">{device.name || "ESP32 Conectado"}</span>
+              </div>
+            )}
           </div>
 
-          {/* Tarjeta de último dato */}
-          <div className="bg-neutral-900 rounded-3xl border border-white/5 p-8">
-            <h2 className="text-lg font-semibold mb-6 flex items-center gap-2">
-              <Database className="w-5 h-5 text-emerald-400" /> Última Lectura
-            </h2>
+          {/* CACHE METRICS */}
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <Database className="w-4 h-4 text-emerald-500" /> Memoria Caché
+              </h3>
+              <span className="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-1 rounded-md">
+                {pendingSync.length} registros
+              </span>
+            </div>
             
-            {lastData ? (
+            {pendingSync.length > 0 ? (
               <div className="space-y-4">
-                {Object.entries(lastData).map(([key, value]: [string, any]) => (
-                  <div key={key} className="flex justify-between items-center p-3 bg-black/40 rounded-xl border border-white/5">
-                    <span className="text-neutral-400 capitalize">{key}</span>
-                    <span className="text-white font-mono font-bold text-lg">{value}</span>
-                  </div>
-                ))}
+                 <button 
+                  onClick={clearCache}
+                  className="w-full text-sm font-bold text-red-500 py-2 bg-red-50 hover:bg-red-100 rounded-xl transition"
+                 >
+                   Purgar Caché Local
+                 </button>
+                 
+                 {isOnline && (
+                   <button 
+                    onClick={syncPendingData}
+                    disabled={isSyncing}
+                    className="w-full flex items-center justify-center gap-2 text-sm font-bold text-white py-3 bg-slate-800 hover:bg-slate-900 rounded-xl transition shadow-md"
+                   >
+                     {isSyncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CloudUpload className="w-4 h-4" />}
+                     {isSyncing ? "Subiendo..." : "Forzar Sincronización"}
+                   </button>
+                 )}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-32 border border-dashed border-white/10 rounded-2xl text-neutral-500 italic text-sm">
-                Esperando datos...
-              </div>
+              <p className="text-sm text-slate-500 font-medium text-center py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                Todo está subido a la nube.
+              </p>
             )}
           </div>
         </div>
 
-        {/* Panel Derecho: Consola de Logs */}
-        <div className="lg:col-span-2">
-          <div className="bg-neutral-900 rounded-3xl border border-white/5 h-full flex flex-col overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-white/5 bg-neutral-900/50 flex justify-between items-center">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Terminal className="w-5 h-5 text-neutral-400" /> Consola de Operación
+        {/* DATA & DASHBOARD AREA (Col 8) */}
+        <div className="lg:col-span-8 flex flex-col gap-6">
+          
+          {/* OFFLINE ONLY: Last local read details */}
+          {!isOnline && (
+            <div className="bg-white rounded-3xl shadow-sm border border-orange-200 p-8 h-full flex flex-col justify-center relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-full blur-3xl" />
+               <div className="relative z-10">
+                 <h2 className="text-xl font-bold flex items-center gap-2 mb-2 text-slate-800">
+                    <Activity className="w-6 h-6 text-orange-500" /> Última Extracción de Campo
+                 </h2>
+                 <p className="text-slate-500 text-sm mb-8 font-medium">Buscando datos localmente vía Caché. Conéctate a WiFi para el análisis inteligente.</p>
+
+                 {lastRead ? (
+                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                     <div className="p-6 border border-slate-100 bg-slate-50 rounded-2xl shadow-sm">
+                       <p className="text-sm font-bold text-slate-400 mb-1">pH Registrado</p>
+                       <p className="text-4xl font-black text-slate-800">{lastRead.ph}</p>
+                     </div>
+                     <div className="p-6 border border-slate-100 bg-slate-50 rounded-2xl shadow-sm">
+                       <p className="text-sm font-bold text-slate-400 mb-1">Turbidez</p>
+                       <p className="text-4xl font-black text-slate-800">{lastRead.turbidez}</p>
+                     </div>
+                     <div className="p-6 border border-slate-100 bg-slate-50 rounded-2xl shadow-sm">
+                       <p className="text-sm font-bold text-slate-400 mb-1">Temperatura</p>
+                       <p className="text-4xl font-black text-slate-800">{lastRead.temperatura}°C</p>
+                     </div>
+                   </div>
+                 ) : (
+                   <div className="flex flex-col items-center justify-center p-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 font-bold">
+                     Ningún dato descargado hoy
+                   </div>
+                 )}
+               </div>
+            </div>
+          )}
+
+          {/* ONLINE ONLY: Smart Dashboard Recommendations */}
+          {isOnline && (
+            <div className="bg-white rounded-3xl shadow-sm border border-emerald-200 p-8 h-full">
+              <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800 mb-6 border-b border-slate-100 pb-4">
+                💡 Base de Datos Inteligente — Recomendaciones Actionables
               </h2>
-              <span className="text-[10px] bg-neutral-800 text-neutral-400 px-2 py-1 rounded border border-white/10 uppercase tracking-wider">
-                Real-Time Stream
-              </span>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6 space-y-3 font-mono text-xs scrollbar-hide min-h-[400px] max-h-[600px]">
-              {logs.length === 0 && (
-                <p className="text-neutral-600 italic">No hay actividad registrada...</p>
-              )}
-              {logs.map((log) => (
-                <div key={log.id} className="flex gap-3 animate-in fade-in slide-in-from-left-2 transition-all">
-                  <span className="text-neutral-600 whitespace-nowrap">
-                    [{formatTimestamp(log.timestamp)}]
-                  </span>
-                  <div className="flex items-start gap-2">
-                    {log.type === "success" && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5" />}
-                    {log.type === "error" && <AlertCircle className="w-3.5 h-3.5 text-red-500 mt-0.5" />}
-                    {log.type === "data" && <Database className="w-3.5 h-3.5 text-blue-500 mt-0.5" />}
-                    
-                    <span className={`
-                      ${log.type === "success" ? "text-emerald-400" : ""}
-                      ${log.type === "error" ? "text-red-400 font-bold" : ""}
-                      ${log.type === "data" ? "text-blue-300 bg-blue-500/10 px-1.5 py-0.5 rounded" : ""}
-                      ${log.type === "info" ? "text-neutral-400" : ""}
-                    `}>
-                      {log.message}
-                    </span>
+              
+              <div className="space-y-4">
+                {!lastRead ? (
+                  <div className="bg-blue-50 border border-blue-100 rounded-2xl p-6 flex items-start gap-4">
+                     <AlertCircle className="w-6 h-6 text-blue-500 flex-shrink-0" />
+                     <div>
+                       <h4 className="font-bold text-blue-900 text-lg">En Espera de Datos Locales</h4>
+                       <p className="text-blue-700 text-sm mt-1">Conéctate a la boya o descarga datos del caché para que la nube pueda generar una lectura situacional. Ve al menú principal para usar los simuladores predictivos.</p>
+                     </div>
                   </div>
-                </div>
-              ))}
-              <div ref={logsEndRef} />
-            </div>
+                ) : (
+                  <>
+                     {/* Dynamic Recommendations based on Last Read */}
+                     {lastRead.ph > 8.0 && (
+                        <div className="bg-rose-50 border border-rose-100 rounded-2xl p-6 flex items-start gap-4">
+                           <AlertCircle className="w-6 h-6 text-rose-500 flex-shrink-0" />
+                           <div>
+                             <h4 className="font-bold text-rose-900 text-lg">Alerta: Nivel Alcalino Alto (pH {lastRead.ph})</h4>
+                             <p className="text-rose-700 text-sm mt-1 font-medium">El pH ha superado el límite sano. Recomendación civil: Restringir acceso al cenote. Causa probable: Exceso de turistas utilizando cremas, jabones corporales o bloqueadores solares de alto impacto.</p>
+                           </div>
+                        </div>
+                     )}
 
-            <div className="p-4 bg-black/20 border-t border-white/5 flex justify-end">
-              <button 
-                onClick={() => setLogs([])}
-                className="text-[10px] text-neutral-500 hover:text-neutral-300 uppercase tracking-widest transition-colors"
-              >
-                Limpiar Consola
-              </button>
+                     {lastRead.ph <= 8.0 && lastRead.ph >= 6.5 && (
+                        <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 flex items-start gap-4">
+                           <CheckCircle2 className="w-6 h-6 text-emerald-500 flex-shrink-0" />
+                           <div>
+                             <h4 className="font-bold text-emerald-900 text-lg">Acidez Óptima (pH {lastRead.ph})</h4>
+                             <p className="text-emerald-700 text-sm mt-1 font-medium">El agua se mantiene en un espectro purificado y neutro. Excelente salud biológica.</p>
+                           </div>
+                        </div>
+                     )}
+
+                     {lastRead.turbidez > 4.0 && (
+                       <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6 flex items-start gap-4">
+                           <AlertCircle className="w-6 h-6 text-amber-500 flex-shrink-0" />
+                           <div>
+                             <h4 className="font-bold text-amber-900 text-lg">Visibilidad Crítica (Turbidez {lastRead.turbidez} NTU)</h4>
+                             <p className="text-amber-700 text-sm mt-1 font-medium">El cenote sufre de agua embarrada. Recomendación ecológica: Revisar deslaves recientes o construcciones masivas cavando cerca del manto freático subterráneo.</p>
+                           </div>
+                        </div>
+                     )}
+
+                     {lastRead.temperatura > 26.5 && (
+                       <div className="bg-orange-50 border border-orange-100 rounded-2xl p-6 flex items-start gap-4">
+                           <AlertCircle className="w-6 h-6 text-orange-500 flex-shrink-0" />
+                           <div>
+                             <h4 className="font-bold text-orange-900 text-lg">Calentamiento Acuoso (Temp {lastRead.temperatura} °C)</h4>
+                             <p className="text-orange-700 text-sm mt-1 font-medium">Cuidado con la proliferación de algas nocivas. Temperaturas encima de 26°C disparan la biomasa verde asfixiando a la fauna endémica del cenote.</p>
+                           </div>
+                        </div>
+                     )}
+                  </>
+                )}
+              </div>
             </div>
-          </div>
+          )}
+
         </div>
       </div>
     </div>
   );
-}
-
-function formatTimestamp(date: Date) {
-  return date.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
