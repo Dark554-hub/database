@@ -446,7 +446,7 @@ export default function MobileCollector() {
       {/* ── FOOTER ── */}
       <footer className="px-8 py-4 mt-4 text-center border-t" style={{ borderColor: "#C9A22715" }}>
         <p className="text-xs font-medium" style={{ color: "#0F172A40" }}>
-          Lympha · Cenote Water Intelligence · Modo {isOnline ? "Online" : "Offline"}
+          Flotaya · Monitoreo de Cenotes · Modo {isOnline ? "En línea" : "Sin conexión"}
         </p>
       </footer>
     </div>

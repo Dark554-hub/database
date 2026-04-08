@@ -49,25 +49,26 @@ export default function Dashboard() {
   const chartColors = ["#C9A227", "#4A7C59", "#0EA5E9", "#A34A3E", "#8b5cf6"];
 
   const metricLabel: Record<string, { label: string; unit: string }> = {
-    ph:          { label: "pH",          unit: "" },
-    turbidez:    { label: "Turbidez",    unit: " NTU" },
-    temperatura: { label: "Temperatura", unit: " °C" },
-    nitratos:    { label: "Nitratos",    unit: " mg/L" },
+    ph:          { label: "pH",           unit: "" },
+    turbidez:    { label: "Turbidez",     unit: " NTU" },
+    temperatura: { label: "Temperatura",  unit: " °C" },
+    nitratos:    { label: "Nitratos",     unit: " mg/L" },
+    conductividad: { label: "Conductividad", unit: " µS/cm" },
   };
 
   const getStatus = (key: string, val: number) => {
     if (key === "ph") {
-      if (val >= 6.5 && val <= 8.0) return { label: "Óptimo",       color: "#4A7C59" };
+      if (val >= 6.5 && val <= 8.0) return { label: "Óptimo",        color: "#4A7C59" };
       return                                { label: "Fuera de rango", color: "#A34A3E" };
     }
     if (key === "turbidez") {
-      if (val <= 4) return { label: "Agua clara",  color: "#4A7C59" };
-      if (val <= 8) return { label: "Moderada",    color: "#C9A227" };
-      return               { label: "Turbia",      color: "#A34A3E" };
+      if (val <= 4) return { label: "Agua clara", color: "#4A7C59" };
+      if (val <= 8) return { label: "Moderada",   color: "#C9A227" };
+      return               { label: "Turbia",     color: "#A34A3E" };
     }
     if (key === "temperatura") {
-      if (val <= 26.5) return { label: "Normal",   color: "#4A7C59" };
-      return                  { label: "Elevada",  color: "#C9A227" };
+      if (val <= 26.5) return { label: "Normal",  color: "#4A7C59" };
+      return                  { label: "Elevada", color: "#C9A227" };
     }
     return { label: "—", color: "#64748b" };
   };
@@ -211,7 +212,7 @@ export default function Dashboard() {
             {/* ── CHARTS ── */}
             <div>
               <h2 className="text-2xl font-bold serif-italic mb-5" style={{ color: "var(--lympha-walnut)" }}>
-                Evolución de parámetros
+                Evolución de Parámetros
               </h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {metrics.map((key, i) => {
@@ -237,7 +238,7 @@ export default function Dashboard() {
                           className="text-xs font-medium px-2 py-0.5 rounded-md"
                           style={{ backgroundColor: `${color}15`, color, fontFamily: "var(--font-sans)" }}
                         >
-                          Últimas {data.length} lecturas
+                          {data.length} lecturas recientes
                         </span>
                       </div>
 
@@ -298,7 +299,7 @@ export default function Dashboard() {
       {/* ── FOOTER sutíl ── */}
       <footer className="px-8 py-4 text-center border-t" style={{ borderColor: "#C9A22718" }}>
         <p className="text-xs font-medium" style={{ color: "#0F172A40" }}>
-          Lympha · Cenote Water Intelligence · Actualización automática cada 3 s
+          Flotaya · Monitoreo de Cenotes · Actualización automática cada 3 s
         </p>
       </footer>
     </div>

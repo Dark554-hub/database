@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Lympha — Cenote Water Intelligence",
-  description: "Sistema inteligente de monitoreo y recolección de datos para cenotes. Tech-Organic · Powered by Lympha.",
+  title: "Flotaya",
+  description: "Sistema inteligente de monitoreo y recolección de datos para cenotes. Tecnología al servicio de la naturaleza.",
 };
 
 export default function RootLayout({
