@@ -189,8 +189,8 @@ export default function MobileCollector() {
             />
           </div>
 
-          {/* Fallback brand + page context */}
-          <div className="flex items-center gap-2 pl-3 border-l border-white/10">
+          {/* Page context */}
+          <div className="flex items-center pl-3 border-l border-white/10">
             <div>
               <h1 className="text-base font-bold text-white leading-none serif-italic">
                 Recolector de Campo

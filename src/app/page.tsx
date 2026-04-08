@@ -82,7 +82,6 @@ export default function Dashboard() {
       >
         {/* Logo + Brand */}
         <div className="flex items-center gap-4">
-          {/* Logo SVG embebido — sustituye con <Image> cuando tengas el archivo */}
           <div className="h-9 w-auto flex items-center">
             <Image
               src="/logo.png"
@@ -92,16 +91,6 @@ export default function Dashboard() {
               style={{ objectFit: "contain" }}
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
             />
-          </div>
-          {/* Fallback si no existe el logo todavía */}
-          <div className="flex items-center gap-2 pl-1 border-l border-white/10">
-            <Droplets className="w-5 h-5" style={{ color: "var(--lympha-amber)" }} />
-            <div>
-              <h1 className="text-base font-bold text-white leading-none serif-italic">Lympha</h1>
-              <p className="text-xs mt-0.5 font-medium" style={{ color: "#C9A22780" }}>
-                Centro de Datos · Cenote Intelligence
-              </p>
-            </div>
           </div>
         </div>
 
