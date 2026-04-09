@@ -28,7 +28,7 @@
       "name": "Recolector de Campo",
       "short_name": "Campo",
       "description": "Recolectar datos vía Bluetooth",
-      "url": "/collector",
+      "url": "/recolector",
       "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
     }
   ]

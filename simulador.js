@@ -1,7 +1,7 @@
-// simulador.js
-// 1. Aquí eliges a cuál enviar la prueba:
-const URL_LOCAL = "http://localhost:3000/api/sensors";
-const URL_VERCEL = "https://database-ebon-kappa.vercel.app/api/sensors"; // Reemplaza esto si quieres probar la de Vercel
+// simulador-datos.js — Inyector de datos de prueba para Flotaya
+// Elige a cuál servidor enviar los datos:
+const URL_LOCAL  = "http://localhost:3000/api/lecturas";
+const URL_VERCEL = "https://database-ebon-kappa.vercel.app/api/lecturas"; // Servidor en producción
 
 // Elige cuál de las dos usar editando esta variable (URL_LOCAL o URL_VERCEL)
 const URL_OBJETIVO = URL_VERCEL; 

@@ -115,7 +115,7 @@ export default function MobileCollector() {
     let synced = 0;
     for (const item of pendingSync) {
       try {
-        const res = await fetch("/api/sensors", {
+        const res = await fetch("/api/lecturas", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(item.data),

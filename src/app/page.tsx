@@ -17,7 +17,7 @@ export default function Dashboard() {
 
   const fetchData = async () => {
     try {
-      const res = await fetch("/api/sensors");
+      const res = await fetch("/api/lecturas");
       if (!res.ok) throw new Error("Error en la respuesta");
       const json = await res.json();
       const records = json.data || [];
@@ -98,7 +98,7 @@ export default function Dashboard() {
         {/* Nav + Status */}
         <div className="flex flex-wrap items-center gap-3">
           <Link
-            href="/collector"
+            href="/recolector"
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all active:scale-95 shadow-md"
             style={{ backgroundColor: "var(--lympha-amber)", color: "var(--lympha-walnut)" }}
           >
