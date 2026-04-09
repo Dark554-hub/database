@@ -1,0 +1,35 @@
+{
+  "name": "Flotaya — Monitoreo de Cenotes",
+  "short_name": "Flotaya",
+  "description": "Sistema inteligente de monitoreo y recolección de datos para cenotes.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F5F0E8",
+  "theme_color": "#14100E",
+  "orientation": "portrait-primary",
+  "categories": ["utilities", "science"],
+  "lang": "es",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Recolector de Campo",
+      "short_name": "Campo",
+      "description": "Recolectar datos vía Bluetooth",
+      "url": "/collector",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    }
+  ]
+}
