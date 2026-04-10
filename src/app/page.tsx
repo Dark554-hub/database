@@ -1,12 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { RefreshCw, WifiOff, Bluetooth, Droplets } from "lucide-react";
+import { RefreshCw, WifiOff, Bluetooth, Droplets, Brain, ShieldCheck, AlertTriangle, ShieldAlert } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
 import Image from "next/image";
+
+interface DiagnosticoEtiqueta {
+  parametro: string;
+  estado: string;
+  severidad: number;
+  detalle: string;
+}
+
+interface DiagnosticoResult {
+  clasificacion: "normal" | "advertencia" | "alerta";
+  confianza: number;
+  etiquetas: DiagnosticoEtiqueta[];
+  recomendaciones: string[];
+  timestamp: string;
+}
 
 export default function Dashboard() {
   const [data, setData] = useState<any[]>([]);
@@ -14,6 +29,38 @@ export default function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<string[]>([]);
+  const [diagnostico, setDiagnostico] = useState<DiagnosticoResult | null>(null);
+  const [diagLoading, setDiagLoading] = useState(false);
+  const lastDiagKey = React.useRef<string>("");
+
+  const fetchDiagnostico = useCallback(async (lectura: any, isInitial: boolean) => {
+    // Generar una clave con los valores para detectar cambios reales
+    const key = `${lectura.ph}-${lectura.turbidez}-${lectura.temperatura}-${lectura.conductividad}`;
+    if (key === lastDiagKey.current) return; // Sin cambios, no re-consultar
+    lastDiagKey.current = key;
+
+    try {
+      // Solo mostrar spinner en la carga inicial
+      if (isInitial) setDiagLoading(true);
+      const res = await fetch("/api/diagnostico", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ph: lectura.ph,
+          turbidez: lectura.turbidez,
+          temperatura: lectura.temperatura,
+          conductividad: lectura.conductividad,
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success) setDiagnostico(json.diagnostico);
+      }
+    } catch { /* silently fail */ }
+    finally { if (isInitial) setDiagLoading(false); }
+  }, []);
+
+  const isFirstLoad = React.useRef(true);
 
   const fetchData = async () => {
     try {
@@ -28,6 +75,9 @@ export default function Dashboard() {
         const last = records[records.length - 1];
         const keys = Object.keys(last).filter(k => typeof last[k] === "number" && k !== "id");
         setMetrics(keys);
+        // Solo re-diagnosticar si los datos cambiaron
+        fetchDiagnostico(last, isFirstLoad.current);
+        isFirstLoad.current = false;
       }
     } catch (err: any) {
       setError(err.message);
@@ -38,7 +88,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
-    const t = setInterval(fetchData, 3000);
+    const t = setInterval(fetchData, 15000); // Polling cada 15s en vez de 3s
     return () => clearInterval(t);
   }, []);
 
@@ -209,6 +259,130 @@ export default function Dashboard() {
               })}
             </div>
 
+            {/* ── ML DIAGNOSTIC PANEL ── */}
+            {diagnostico && (
+              <div
+                className="rounded-2xl p-6 md:p-8 shadow-sm border relative overflow-hidden"
+                style={{
+                  backgroundColor: "var(--lympha-cream)",
+                  borderColor: diagnostico.clasificacion === "normal" ? "#4A7C5930"
+                    : diagnostico.clasificacion === "advertencia" ? "#C9A22730"
+                    : "#A34A3E30",
+                }}
+              >
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="p-2.5 rounded-xl"
+                      style={{
+                        backgroundColor: diagnostico.clasificacion === "normal" ? "#4A7C5915"
+                          : diagnostico.clasificacion === "advertencia" ? "#C9A22715"
+                          : "#A34A3E15",
+                      }}
+                    >
+                      <Brain
+                        className="w-6 h-6"
+                        style={{
+                          color: diagnostico.clasificacion === "normal" ? "#4A7C59"
+                            : diagnostico.clasificacion === "advertencia" ? "#C9A227"
+                            : "#A34A3E",
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold serif-italic" style={{ color: "var(--lympha-walnut)" }}>
+                        Diagnóstico ML
+                      </h2>
+                      <p className="text-xs font-medium" style={{ color: "#0F172A50" }}>
+                        Modelo entrenado con 7,401 registros · NOM-127-SSA1-2021
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Classification badge */}
+                  <div
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm self-start sm:self-auto"
+                    style={{
+                      backgroundColor: diagnostico.clasificacion === "normal" ? "#4A7C5918"
+                        : diagnostico.clasificacion === "advertencia" ? "#C9A22718"
+                        : "#A34A3E18",
+                      color: diagnostico.clasificacion === "normal" ? "#4A7C59"
+                        : diagnostico.clasificacion === "advertencia" ? "#C9A227"
+                        : "#A34A3E",
+                    }}
+                  >
+                    {diagnostico.clasificacion === "normal" && <ShieldCheck className="w-5 h-5" />}
+                    {diagnostico.clasificacion === "advertencia" && <AlertTriangle className="w-5 h-5" />}
+                    {diagnostico.clasificacion === "alerta" && <ShieldAlert className="w-5 h-5" />}
+                    {diagnostico.clasificacion.toUpperCase()}
+                  </div>
+                </div>
+
+                {/* Parameter tags */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+                  {diagnostico.etiquetas.map((et, i) => (
+                    <div
+                      key={i}
+                      className="rounded-xl p-4 border"
+                      style={{
+                        backgroundColor: et.severidad === 0 ? "#4A7C5908" : et.severidad === 1 ? "#C9A22708" : "#A34A3E08",
+                        borderColor: et.severidad === 0 ? "#4A7C5920" : et.severidad === 1 ? "#C9A22720" : "#A34A3E20",
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#0F172A60" }}>
+                          {et.parametro}
+                        </span>
+                        <span
+                          className="text-xs font-bold px-2 py-0.5 rounded-full"
+                          style={{
+                            backgroundColor: et.severidad === 0 ? "#4A7C5918" : et.severidad === 1 ? "#C9A22718" : "#A34A3E18",
+                            color: et.severidad === 0 ? "#4A7C59" : et.severidad === 1 ? "#C9A227" : "#A34A3E",
+                          }}
+                        >
+                          {et.estado}
+                        </span>
+                      </div>
+                      <p className="text-xs leading-relaxed" style={{ color: "#0F172A70" }}>
+                        {et.detalle}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Recommendations */}
+                {diagnostico.recomendaciones.length > 0 && (
+                  <div
+                    className="rounded-xl p-4 border"
+                    style={{ backgroundColor: "var(--lympha-walnut)", borderColor: "#C9A22720" }}
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#C9A22790" }}>
+                      Recomendaciones del modelo
+                    </p>
+                    <ul className="space-y-2">
+                      {diagnostico.recomendaciones.map((rec, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm" style={{ color: "#FAF7F3DD" }}>
+                          <span className="text-amber-400 mt-0.5 flex-shrink-0">›</span>
+                          {rec}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Loading overlay */}
+                {diagLoading && (
+                  <div className="absolute inset-0 bg-white/40 backdrop-blur-sm flex items-center justify-center rounded-2xl">
+                    <div
+                      className="w-8 h-8 border-4 rounded-full animate-spin"
+                      style={{ borderColor: "#C9A22725", borderTopColor: "var(--lympha-amber)" }}
+                    ></div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ── CHARTS ── */}
             <div>
               <h2 className="text-2xl font-bold serif-italic mb-5" style={{ color: "var(--lympha-walnut)" }}>
@@ -299,7 +473,7 @@ export default function Dashboard() {
       {/* ── FOOTER sutíl ── */}
       <footer className="px-8 py-4 text-center border-t" style={{ borderColor: "#C9A22718" }}>
         <p className="text-xs font-medium" style={{ color: "#0F172A40" }}>
-          Flotaya · Monitoreo de Cenotes · Actualización automática cada 3 s
+          Flotaya · Monitoreo de Cenotes · Actualización automática cada 15 s
         </p>
       </footer>
     </div>
