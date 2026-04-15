@@ -16,14 +16,51 @@ interface PendingRead {
   timestamp: string;
 }
 
+interface SensorPayload {
+  ph: number;
+  turbidez: number;
+  temperatura: number;
+  conductividad?: number;
+}
+
+interface BleLogItem {
+  at: string;
+  raw: string;
+  status: "ok" | "invalid";
+}
+
+const ESP32_DEVICE_NAME = "SatoruBoyon";
+const BLE_SERVICE_UUID = "12345678-1234-1234-1234-1234567890ab";
+const BLE_CHARACTERISTIC_UUID = "abcdefab-1234-1234-1234-abcdefabcdef";
+const BLE_FALLBACK_SERVICE_UUIDS = [
+  BLE_SERVICE_UUID,
+  "4fafc201-1fb5-459e-8fcc-c5c9c331914b", // ESP32 BLE example service
+  "6e400001-b5a3-f393-e0a9-e50e24dcca9e", // Nordic UART Service
+  "0000ffe0-0000-1000-8000-00805f9b34fb", // HM-10 style service
+];
+const BLE_FALLBACK_CHARACTERISTIC_UUIDS = [
+  BLE_CHARACTERISTIC_UUID,
+  "beb5483e-36e1-4688-b7f5-ea07361b26a8", // ESP32 BLE example characteristic
+  "6e400003-b5a3-f393-e0a9-e50e24dcca9e", // Nordic UART TX (notify)
+  "0000ffe1-0000-1000-8000-00805f9b34fb", // HM-10 style characteristic
+];
+const BLE_RETRY_DELAYS_MS = [0, 700, 1500];
+
 export default function MobileCollector() {
   const [device, setDevice] = useState<any | null>(null);
+  const [characteristic, setCharacteristic] = useState<any | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [pendingSync, setPendingSync] = useState<PendingRead[]>([]);
   const [isWebBluetoothSupported, setIsWebBluetoothSupported] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+  const [bleLogs, setBleLogs] = useState<BleLogItem[]>([]);
+  const [bleFramesCount, setBleFramesCount] = useState(0);
+  const [bleLastRaw, setBleLastRaw] = useState<string>("—");
+  const streamBufferRef = React.useRef("");
+  const pollTimerRef = React.useRef<number | null>(null);
+  const flushTimerRef = React.useRef<number | null>(null);
 
   useEffect(() => {
     setIsWebBluetoothSupported(typeof navigator !== "undefined" && !!(navigator as any).bluetooth);
@@ -49,10 +86,144 @@ export default function MobileCollector() {
     localStorage.setItem("lympha_offline_queue", JSON.stringify(pendingSync));
   }, [pendingSync]);
 
+  useEffect(() => {
+    return () => {
+      if (characteristic) {
+        characteristic.removeEventListener("characteristicvaluechanged", handleBTData as EventListener);
+      }
+      if (pollTimerRef.current !== null) {
+        window.clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+      if (flushTimerRef.current !== null) {
+        window.clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      device?.gatt?.disconnect();
+    };
+  }, [device, characteristic]);
+
   // Auto-sync when back online
   useEffect(() => {
     if (isOnline && pendingSync.length > 0 && !isSyncing) syncAll();
   }, [isOnline]);
+
+  const formatBLEError = (error: unknown) => {
+    const msg = (error as Error)?.message?.toLowerCase() ?? "";
+    if (msg.includes("not supported") || msg.includes("notfounderror")) {
+      return "El ESP32 se conecto, pero no expone el servicio/caracteristica BLE esperados. Verifica UUIDs del firmware o usa un perfil BLE UART (NUS/FFE0).";
+    }
+    if (msg.includes("notallowederror") || msg.includes("user cancelled")) {
+      return "Seleccion de dispositivo cancelada.";
+    }
+    if (msg.includes("connection attempt failed")) {
+      return "La boya fue detectada, pero el enlace BLE fallo al abrir GATT. Reinicia Bluetooth del PC y energiza de nuevo la ESP32; la app ahora reintenta automaticamente varias veces.";
+    }
+    return (error as Error)?.message ?? "No se pudo conectar por BLE.";
+  };
+
+  const connectGattWithRetry = async (dev: any) => {
+    let lastError: unknown = null;
+    for (const waitMs of BLE_RETRY_DELAYS_MS) {
+      if (waitMs > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, waitMs));
+      }
+      try {
+        if (dev.gatt?.connected) {
+          dev.gatt.disconnect();
+          await new Promise((resolve) => window.setTimeout(resolve, 250));
+        }
+        const server = await dev.gatt?.connect();
+        if (server) return server;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError ?? new Error("No se pudo abrir el servidor GATT.");
+  };
+
+  const stopPolling = () => {
+    if (pollTimerRef.current !== null) {
+      window.clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  };
+
+  const pushBleLog = (raw: string, status: "ok" | "invalid") => {
+    const normalized = raw.trim();
+    setBleLastRaw(normalized || "—");
+    setBleFramesCount((prev) => prev + 1);
+    setBleLogs((prev) => [
+      {
+        at: new Date().toLocaleTimeString(),
+        raw: normalized || "(trama vacia)",
+        status,
+      },
+      ...prev,
+    ].slice(0, 20));
+  };
+
+  const pickCharacteristicFromService = async (service: any) => {
+    const chars = await service.getCharacteristics();
+    const preferred = chars.find((c: any) =>
+      BLE_FALLBACK_CHARACTERISTIC_UUIDS.includes(c.uuid.toLowerCase())
+      && (c.properties.notify || c.properties.indicate || c.properties.read)
+    );
+    if (preferred) return preferred;
+
+    const firstNotifiable = chars.find((c: any) => c.properties.notify || c.properties.indicate);
+    if (firstNotifiable) return firstNotifiable;
+
+    const firstReadable = chars.find((c: any) => c.properties.read);
+    if (firstReadable) return firstReadable;
+
+    return null;
+  };
+
+  const findBestCharacteristic = async (server: any) => {
+    // 1) Probar explícitamente UUIDs de servicio conocidos (más confiable con permisos Web Bluetooth)
+    for (const serviceUuid of BLE_FALLBACK_SERVICE_UUIDS) {
+      try {
+        const service = await server.getPrimaryService(serviceUuid);
+        const picked = await pickCharacteristicFromService(service);
+        if (picked) return picked;
+      } catch {
+        // Continuar con el siguiente UUID conocido.
+      }
+    }
+
+    // 2) Intentar barrido de servicios disponibles
+    const services = await server.getPrimaryServices();
+    for (const service of services) {
+      const chars = await service.getCharacteristics();
+      const preferred = chars.find((c: any) =>
+        BLE_FALLBACK_CHARACTERISTIC_UUIDS.includes(c.uuid.toLowerCase())
+        && (c.properties.notify || c.properties.indicate)
+      );
+      if (preferred) return preferred;
+
+      const firstNotifiable = chars.find((c: any) => c.properties.notify || c.properties.indicate);
+      if (firstNotifiable) return firstNotifiable;
+
+      const firstReadable = chars.find((c: any) => c.properties.read);
+      if (firstReadable) return firstReadable;
+    }
+    throw new Error("No se encontro ninguna caracteristica util (notify/indicate/read) en el dispositivo.");
+  };
+
+  const findReadableCharacteristic = async (server: any) => {
+    try {
+      const services = await server.getPrimaryServices();
+      for (const service of services) {
+        const chars = await service.getCharacteristics();
+        const readable = chars.find((c: any) => c.properties.read);
+        if (readable) return readable;
+      }
+    } catch {
+      // Ignorar y devolver null
+    }
+    return null;
+  };
 
   const connectBluetooth = async () => {
     if (!isWebBluetoothSupported) {
@@ -62,51 +233,178 @@ export default function MobileCollector() {
     setIsConnecting(true);
     try {
       const dev = await (navigator as any).bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: [
-          "0000ffe0-0000-1000-8000-00805f9b34fb",
-          "6e400001-b5a3-f393-e0a9-e50e24dcca9e",
-        ],
+        filters: [{ name: ESP32_DEVICE_NAME }, { namePrefix: "Satoru" }, { namePrefix: "ESP32" }],
+        optionalServices: BLE_FALLBACK_SERVICE_UUIDS,
       });
-      setDevice(dev);
-      dev.addEventListener("gattserverdisconnected", () => setDevice(null));
-      const server = await dev.gatt?.connect();
-      const services = await server?.getPrimaryServices();
-      for (const svc of services || []) {
-        const chars = await svc.getCharacteristics();
-        for (const c of chars) {
-          if (c.properties.notify || c.properties.indicate) {
-            await c.startNotifications();
-            c.addEventListener("characteristicvaluechanged", handleBTData);
+
+      const server = await connectGattWithRetry(dev);
+      if (!server) throw new Error("No se pudo abrir el servidor GATT.");
+
+      let char: any;
+      try {
+        const service = await server.getPrimaryService(BLE_SERVICE_UUID);
+        char = await service.getCharacteristic(BLE_CHARACTERISTIC_UUID);
+      } catch {
+        char = await findBestCharacteristic(server);
+      }
+
+      if (characteristic) {
+        characteristic.removeEventListener("characteristicvaluechanged", handleBTData as EventListener);
+      }
+      stopPolling();
+
+      let connectionMode: "notify" | "polling" = "notify";
+      if (char.properties.notify || char.properties.indicate) {
+        try {
+          await char.startNotifications();
+          char.addEventListener("characteristicvaluechanged", handleBTData as EventListener);
+          connectionMode = "notify";
+        } catch {
+          if (char.properties.read) {
+            connectionMode = "polling";
+            pollTimerRef.current = window.setInterval(async () => {
+              try {
+                const value = await char.readValue();
+                const text = new TextDecoder("utf-8").decode(value).trim();
+                if (text) parseAndStore(text);
+              } catch {
+                // Ignorar lecturas fallidas intermitentes durante polling BLE.
+              }
+            }, 1500);
+          } else {
+            const readableFallback = await findReadableCharacteristic(server);
+            if (!readableFallback) {
+              throw new Error("La caracteristica BLE seleccionada no permitio notificaciones y no existe una alternativa de lectura.");
+            }
+            char = readableFallback;
+            connectionMode = "polling";
+            pollTimerRef.current = window.setInterval(async () => {
+              try {
+                const value = await char.readValue();
+                const text = new TextDecoder("utf-8").decode(value).trim();
+                if (text) parseAndStore(text);
+              } catch {
+                // Ignorar lecturas fallidas intermitentes durante polling BLE.
+              }
+            }, 1500);
           }
         }
+      } else if (char.properties.read) {
+        connectionMode = "polling";
+        pollTimerRef.current = window.setInterval(async () => {
+          try {
+            const value = await char.readValue();
+            const text = new TextDecoder("utf-8").decode(value).trim();
+            if (text) parseAndStore(text);
+          } catch {
+            // Ignorar lecturas fallidas intermitentes durante polling BLE.
+          }
+        }, 1500);
+      } else {
+        throw new Error(`La caracteristica ${char.uuid} no soporta notify/indicate/read.`);
       }
+
+      setDevice(dev);
+      setCharacteristic(char);
+      dev.addEventListener("gattserverdisconnected", () => {
+        setDevice(null);
+        setCharacteristic(null);
+        streamBufferRef.current = "";
+        stopPolling();
+      });
+      alert(connectionMode === "notify"
+        ? "Conectado al ESP32 por BLE"
+        : "Conectado al ESP32 en modo lectura (polling)");
     } catch (e: any) {
       console.warn(e.message);
+      alert(`Error BLE: ${formatBLEError(e)}`);
     } finally {
       setIsConnecting(false);
     }
   };
 
   const handleBTData = (event: any) => {
-    const csv = new TextDecoder("utf-8").decode(event.target.value).trim();
-    if (csv) parseAndStore(csv);
+    const chunk = new TextDecoder("utf-8").decode(event.target.value).replace(/\0/g, "");
+    setBleLastRaw(chunk.trim() || "—");
+    streamBufferRef.current += chunk;
+
+    const frames = streamBufferRef.current.split(/\r?\n/);
+    streamBufferRef.current = frames.pop() ?? "";
+
+    for (const frame of frames) {
+      const normalized = frame.trim();
+      if (normalized) parseAndStore(normalized);
+    }
+
+    if (streamBufferRef.current.length > 120) {
+      const maybeFrame = streamBufferRef.current.trim();
+      streamBufferRef.current = "";
+      if (maybeFrame) parseAndStore(maybeFrame);
+    }
+
+    // Algunos firmwares envian sin salto de linea; hacemos flush por inactividad.
+    if (flushTimerRef.current !== null) {
+      window.clearTimeout(flushTimerRef.current);
+    }
+    flushTimerRef.current = window.setTimeout(() => {
+      const pending = streamBufferRef.current.trim();
+      if (pending) {
+        streamBufferRef.current = "";
+        parseAndStore(pending);
+      }
+    }, 280);
   };
 
-  const parseAndStore = (csv: string) => {
-    const parts = csv.split(",").map(p => parseFloat(p.trim()));
-    if (parts.length >= 3 && !parts.some(isNaN)) {
+  const parsePayload = (raw: string): SensorPayload | null => {
+    try {
+      const json = JSON.parse(raw);
+      const ph = Number(json.ph ?? json.pH);
+      const turbidez = Number(json.turbidez ?? json.turbidity);
+      const temperatura = Number(json.temperatura ?? json.temp ?? json.temp_c);
+      const conductividad = Number(json.conductividad ?? json.cond ?? json.conductivity);
+
+      if ([ph, turbidez, temperatura].every(Number.isFinite)) {
+        return {
+          ph,
+          turbidez,
+          temperatura,
+          conductividad: Number.isFinite(conductividad) ? conductividad : undefined,
+        };
+      }
+    } catch {
+      // El frame no era JSON, intentamos CSV.
+    }
+
+    const parts = raw.split(",").map((p) => parseFloat(p.trim()));
+    if (parts.length >= 3 && [parts[0], parts[1], parts[2]].every(Number.isFinite)) {
+      return {
+        ph: parts[0],
+        turbidez: parts[1],
+        temperatura: parts[2],
+        conductividad: Number.isFinite(parts[3]) ? parts[3] : undefined,
+      };
+    }
+
+    return null;
+  };
+
+  const parseAndStore = (raw: string) => {
+    const payload = parsePayload(raw);
+    if (payload) {
+      pushBleLog(raw, "ok");
       const read: PendingRead = {
-        id: Math.random().toString(36).substr(2, 9),
-        data: { ph: parts[0], turbidez: parts[1], temperatura: parts[2] },
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        data: payload,
         timestamp: new Date().toISOString(),
       };
-      setPendingSync(prev => [read, ...prev]);
+      setPendingSync((prev) => [read, ...prev]);
+    } else {
+      pushBleLog(raw, "invalid");
     }
   };
 
   const simulateData = () => {
-    const csv = `${(Math.random() * 2 + 6.5).toFixed(2)},${(Math.random() * 3 + 1).toFixed(2)},${(Math.random() * 5 + 24).toFixed(1)}`;
+    const csv = `${(Math.random() * 2 + 6.5).toFixed(2)},${(Math.random() * 3 + 1).toFixed(2)},${(Math.random() * 5 + 24).toFixed(1)},${(Math.random() * 400 + 250).toFixed(1)}`;
     parseAndStore(csv);
   };
 
@@ -232,7 +530,7 @@ export default function MobileCollector() {
               Vínculo de campo
             </h2>
             <p className="text-xs mb-5 font-medium" style={{ color: "#C9A22770" }}>
-              Conecta la boya vía Bluetooth Low Energy
+              Conecta la boya vía BLE y recibe tramas JSON o CSV
             </p>
 
             <div className="space-y-3">
@@ -267,6 +565,50 @@ export default function MobileCollector() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* BLE logger */}
+          <div
+            className="rounded-2xl p-5 shadow-sm border"
+            style={{ backgroundColor: "var(--lympha-cream)", borderColor: "#0EA5E930" }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-sm" style={{ color: "var(--lympha-walnut)" }}>
+                Logger BLE
+              </h3>
+              <span className="text-xs font-semibold px-2 py-1 rounded-full"
+                style={{ backgroundColor: "#0EA5E910", color: "#0EA5E9" }}>
+                {bleFramesCount} tramas
+              </span>
+            </div>
+
+            <p className="text-xs mb-2" style={{ color: "#0F172A70" }}>
+              Última trama cruda: <span className="font-semibold">{bleLastRaw}</span>
+            </p>
+
+            <div
+              className="max-h-44 overflow-auto rounded-xl border p-2 space-y-2"
+              style={{ borderColor: "#0EA5E925", backgroundColor: "#0EA5E907" }}
+            >
+              {bleLogs.length === 0 ? (
+                <p className="text-xs text-center py-4" style={{ color: "#0F172A55" }}>
+                  Sin tramas BLE recibidas todavia.
+                </p>
+              ) : (
+                bleLogs.map((entry, i) => (
+                  <div key={`${entry.at}-${i}`} className="text-xs rounded-lg px-2 py-1.5 border"
+                    style={{
+                      borderColor: entry.status === "ok" ? "#4A7C5930" : "#A34A3E35",
+                      backgroundColor: entry.status === "ok" ? "#4A7C5910" : "#A34A3E10",
+                      color: "#0F172A",
+                    }}
+                  >
+                    <span className="font-semibold">[{entry.at}] {entry.status === "ok" ? "OK" : "INVALID"}</span>
+                    <span> {entry.raw}</span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           {/* Cache / sync panel */}

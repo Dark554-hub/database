@@ -207,7 +207,7 @@ export default function Dashboard() {
             </h2>
             <p className="text-sm mt-2 text-center max-w-sm px-4" style={{ color: "#0F172A70" }}>
               Usa el{" "}
-              <Link href="/collector" className="underline font-semibold" style={{ color: "var(--lympha-amber)" }}>
+              <Link href="/recolector" className="underline font-semibold" style={{ color: "var(--lympha-amber)" }}>
                 Recolector Móvil
               </Link>{" "}
               para enviar datos desde la boya.
