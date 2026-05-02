@@ -20,6 +20,10 @@ export const metadata: Metadata = {
   title: "Flotaya",
   description: "Sistema inteligente de monitoreo y recolección de datos para cenotes. Tecnología al servicio de la naturaleza.",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/logo.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -40,10 +44,8 @@ export default function RootLayout({
   return (
     <html lang="es" className={`${inter.variable} h-full antialiased`}>
       <head>
-        {/* PWA - iOS icons */}
+        <link rel="icon" type="image/svg+xml" href="/icon.svg" />
         <link rel="apple-touch-icon" href="/logo.png" />
-        <link rel="icon" type="image/png" href="/logo.png" />
-        {/* Splash color para iOS */}
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body className="min-h-full flex flex-col">{children}</body>
