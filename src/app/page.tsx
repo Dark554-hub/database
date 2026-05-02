@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { WifiOff, Bluetooth, Droplets, Brain, ShieldCheck, AlertTriangle, ShieldAlert } from "lucide-react";
+import { WifiOff, Bluetooth, Droplets, Brain, ShieldCheck, AlertTriangle, ShieldAlert, Waves } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
 import Image from "next/image";
@@ -23,10 +23,12 @@ interface DiagnosticoResult {
   timestamp: string;
 }
 
+const BOYAS = [1, 2, 3, 4, 5, 6];
+
 export default function Dashboard() {
+  const [selectedBuoy, setSelectedBuoy] = useState<number | null>(null);
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<string[]>([]);
   const [diagnostico, setDiagnostico] = useState<DiagnosticoResult | null>(null);
@@ -70,7 +72,6 @@ export default function Dashboard() {
       const records = json.data || [];
       setData(records);
       setError(null);
-      setLastUpdated(new Date());
       if (records.length > 0) {
         const last = records[records.length - 1];
         const keys = Object.keys(last).filter(k => typeof last[k] === "number" && k !== "id");
@@ -123,6 +124,77 @@ export default function Dashboard() {
     return { label: "—", color: "#64748b" };
   };
 
+  // ── BUOY SELECTOR SCREEN ──
+  if (!selectedBuoy) {
+    return (
+      <div className="min-h-screen flex flex-col" style={{ backgroundColor: "var(--lympha-sand)" }}>
+        <header
+          style={{ backgroundColor: "#FFFFFF", borderBottom: "1px solid #C9A22718" }}
+          className="px-6 md:px-10 py-4 flex items-center justify-between shadow-sm"
+        >
+          <div className="h-9 w-auto flex items-center">
+            <Image src="/logo.png" alt="Flotaya" width={110} height={36}
+              style={{ objectFit: "contain", filter: "brightness(0)" }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          </div>
+          <Link href="/recolector"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all active:scale-95"
+            style={{ backgroundColor: "var(--lympha-walnut)", color: "#FFFFFF" }}>
+            <Bluetooth className="w-4 h-4" /> Recolector
+          </Link>
+        </header>
+
+        <main className="flex-1 flex flex-col items-center justify-center px-6 py-16">
+          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--lympha-amber)" }}>
+            RED DE MONITOREO
+          </p>
+          <h1 className="text-4xl md:text-5xl font-bold serif-italic mb-3 text-center" style={{ color: "var(--lympha-walnut)" }}>
+            Selecciona una boya
+          </h1>
+          <p className="text-sm font-medium mb-12 text-center max-w-sm" style={{ color: "#0F172A60" }}>
+            Elige la boya cuyo monitoreo deseas consultar.
+          </p>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full max-w-xl">
+            {BOYAS.map((num) => (
+              <button
+                key={num}
+                onClick={() => setSelectedBuoy(num)}
+                className="rounded-3xl p-6 border text-left transition-all active:scale-95 hover:shadow-md group"
+                style={{ backgroundColor: "#FFFFFF", borderColor: "#C9A22722" }}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2 rounded-full" style={{ backgroundColor: "#C9A22715" }}>
+                    <Waves className="w-4 h-4" style={{ color: "var(--lympha-amber)" }} />
+                  </div>
+                  <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--lympha-amber)" }}>
+                    Boya
+                  </span>
+                </div>
+                <p className="text-4xl font-bold serif-italic" style={{ color: "var(--lympha-walnut)" }}>
+                  {String(num).padStart(2, "0")}
+                </p>
+                <div className="mt-3 flex items-center gap-1.5">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-60"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-xs font-semibold" style={{ color: "#4A7C59" }}>Activa</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </main>
+
+        <footer className="px-10 py-5 text-center border-t" style={{ borderColor: "#C9A22718", backgroundColor: "#FFFFFF" }}>
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#0F172A35" }}>
+            Flotaya · Soberanía Hídrica
+          </p>
+        </footer>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: "var(--lympha-sand)" }}>
 
@@ -131,21 +203,24 @@ export default function Dashboard() {
         style={{ backgroundColor: "#FFFFFF", borderBottom: "1px solid #C9A22718" }}
         className="px-6 md:px-10 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm"
       >
-        {/* Logo */}
-        <div className="h-9 w-auto flex items-center">
-          <Image
-            src="/logo.png"
-            alt="Flotaya"
-            width={110}
-            height={36}
-            style={{ objectFit: "contain", filter: "brightness(0)" }}
-            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-          />
+        {/* Logo + boya seleccionada */}
+        <div className="flex items-center gap-4">
+          <button onClick={() => setSelectedBuoy(null)} className="h-9 w-auto flex items-center">
+            <Image
+              src="/logo.png" alt="Flotaya" width={110} height={36}
+              style={{ objectFit: "contain", filter: "brightness(0)" }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          </button>
+          <div className="hidden sm:flex items-center pl-4 border-l" style={{ borderColor: "#C9A22728" }}>
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--lympha-amber)" }}>
+              Boya {String(selectedBuoy).padStart(2, "0")}
+            </p>
+          </div>
         </div>
 
         {/* Nav + CTA */}
         <div className="flex items-center gap-5">
-          {/* Live status */}
           <div className="hidden sm:flex items-center gap-2 text-xs font-semibold uppercase tracking-widest"
             style={{ color: error ? "#A34A3E" : "#4A7C59" }}>
             {error ? (
@@ -156,7 +231,7 @@ export default function Dashboard() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-60"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-                {lastUpdated ? format(lastUpdated, "HH:mm:ss") : "En vivo"}
+                En vivo
               </>
             )}
           </div>

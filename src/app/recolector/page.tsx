@@ -439,19 +439,19 @@ export default function MobileCollector() {
     if (!d) return [];
     const list = [];
     if (d.ph > 8.0)
-      list.push({ icon: "🚫", severity: "alta",    color: "#A34A3E", bg: "#A34A3E12",
+      list.push({ color: "#A34A3E", bg: "#A34A3E12",
         title: `pH alcalino detectado (${d.ph})`,
         desc: "El pH supera el límite saludable (8.0). Causa probable: uso de cremas y bloqueadores solares por turistas. Recomendación: restringir acceso temporalmente y tomar muestras para laboratorio." });
     else if (d.ph >= 6.5)
-      list.push({ icon: "✅", severity: "óptimo",  color: "#4A7C59", bg: "#4A7C5912",
+      list.push({ color: "#4A7C59", bg: "#4A7C5912",
         title: `pH en rango óptimo (${d.ph})`,
         desc: "El agua mantiene un índice neutro y purificado. Las condiciones son favorables para la fauna y flora endémica del cenote." });
     if (d.turbidez > 4)
-      list.push({ icon: "⚠️", severity: "media",   color: "#C9A227", bg: "#C9A22712",
+      list.push({ color: "#C9A227", bg: "#C9A22712",
         title: `Visibilidad reducida (${d.turbidez} NTU)`,
         desc: "El agua está turbia. Verificar deslaves, obras de construcción o actividad agrícola cercana que pueda estar filtrando sedimentos al manto freático." });
     if (d.temperatura > 26.5)
-      list.push({ icon: "🌡️", severity: "media", color: "#d97706", bg: "#d9770612",
+      list.push({ color: "#d97706", bg: "#d9770612",
         title: `Temperatura elevada (${d.temperatura} °C)`,
         desc: "Temperatura sobre 26.5 °C favorece la proliferación de algas nocivas que asfixian a la fauna nativa del cenote. Monitorear en las próximas 24 h." });
     return list;
@@ -662,7 +662,7 @@ export default function MobileCollector() {
                 className="text-xs font-medium text-center py-4 rounded-xl border border-dashed"
                 style={{ borderColor: "#C9A22730", color: "#0F172A50" }}
               >
-                Todo está sincronizado ✓
+                Todo está sincronizado
               </p>
             )}
           </div>
@@ -757,10 +757,9 @@ export default function MobileCollector() {
                   {recommendations(lastRead).map((rec, i) => (
                     <div
                       key={i}
-                      className="p-4 md:p-5 rounded-3xl border flex items-start gap-4"
+                      className="p-4 md:p-5 rounded-3xl border"
                       style={{ backgroundColor: rec.bg, borderColor: `${rec.color}28` }}
                     >
-                      <span className="text-2xl leading-none flex-shrink-0">{rec.icon}</span>
                       <div>
                         <p className="font-semibold text-sm mb-1" style={{ color: rec.color }}>
                           {rec.title}
