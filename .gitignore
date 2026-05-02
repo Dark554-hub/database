@@ -1,0 +1,31 @@
+# Next.js
+.next/
+out/
+build/
+
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Vercel
+.vercel
+
+# OS / Windows system files
+$Recycle.Bin/
+$RECYCLE.BIN/
+Thumbs.db
+Desktop.ini
+System Volume Information/
+Config.Msi/
+Recovery/
+pagefile.sys
+hiberfil.sys
+swapfile.sys
+
+# Misc
+*.log
+.DS_Store
