@@ -130,51 +130,52 @@ export default function Dashboard() {
       <div className="min-h-screen flex flex-col" style={{ backgroundColor: "var(--lympha-sand)" }}>
         <header
           style={{ backgroundColor: "#FFFFFF", borderBottom: "1px solid #C9A22718" }}
-          className="px-6 md:px-10 py-4 flex items-center justify-between shadow-sm"
+          className="px-4 md:px-10 py-4 flex items-center justify-between shadow-sm"
         >
-          <div className="h-9 w-auto flex items-center">
-            <Image src="/logo.png" alt="Flotaya" width={110} height={36}
+          <div className="h-8 w-auto flex items-center">
+            <Image src="/logo.png" alt="Flotaya" width={100} height={32}
               style={{ objectFit: "contain", filter: "brightness(0)" }}
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
           </div>
           <Link href="/recolector"
-            className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all active:scale-95"
+            className="flex items-center gap-2 px-4 py-2 md:px-5 md:py-2.5 rounded-full text-sm font-semibold transition-all active:scale-95"
             style={{ backgroundColor: "var(--lympha-walnut)", color: "#FFFFFF" }}>
-            <Bluetooth className="w-4 h-4" /> Recolector
+            <Bluetooth className="w-4 h-4" />
+            <span className="hidden sm:inline">Recolector</span>
           </Link>
         </header>
 
-        <main className="flex-1 flex flex-col items-center justify-center px-6 py-16">
+        <main className="flex-1 flex flex-col items-center justify-center px-4 py-10 md:py-16">
           <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--lympha-amber)" }}>
             RED DE MONITOREO
           </p>
-          <h1 className="text-4xl md:text-5xl font-bold serif-italic mb-3 text-center" style={{ color: "var(--lympha-walnut)" }}>
+          <h1 className="text-3xl md:text-5xl font-bold serif-italic mb-3 text-center" style={{ color: "var(--lympha-walnut)" }}>
             Selecciona una boya
           </h1>
-          <p className="text-sm font-medium mb-12 text-center max-w-sm" style={{ color: "#0F172A60" }}>
+          <p className="text-sm font-medium mb-8 md:mb-12 text-center max-w-sm" style={{ color: "#0F172A60" }}>
             Elige la boya cuyo monitoreo deseas consultar.
           </p>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full max-w-xl">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 w-full max-w-xl">
             {BOYAS.map((num) => (
               <button
                 key={num}
                 onClick={() => setSelectedBuoy(num)}
-                className="rounded-3xl p-6 border text-left transition-all active:scale-95 hover:shadow-md group"
+                className="rounded-2xl md:rounded-3xl p-4 md:p-6 border text-left transition-all active:scale-95 hover:shadow-md"
                 style={{ backgroundColor: "#FFFFFF", borderColor: "#C9A22722" }}
               >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 rounded-full" style={{ backgroundColor: "#C9A22715" }}>
-                    <Waves className="w-4 h-4" style={{ color: "var(--lympha-amber)" }} />
+                <div className="flex items-center gap-2 mb-2 md:mb-3">
+                  <div className="p-1.5 md:p-2 rounded-full" style={{ backgroundColor: "#C9A22715" }}>
+                    <Waves className="w-3.5 h-3.5 md:w-4 md:h-4" style={{ color: "var(--lympha-amber)" }} />
                   </div>
                   <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--lympha-amber)" }}>
                     Boya
                   </span>
                 </div>
-                <p className="text-4xl font-bold serif-italic" style={{ color: "var(--lympha-walnut)" }}>
+                <p className="text-3xl md:text-4xl font-bold serif-italic" style={{ color: "var(--lympha-walnut)" }}>
                   {String(num).padStart(2, "0")}
                 </p>
-                <div className="mt-3 flex items-center gap-1.5">
+                <div className="mt-2 md:mt-3 flex items-center gap-1.5">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-60"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
@@ -186,7 +187,7 @@ export default function Dashboard() {
           </div>
         </main>
 
-        <footer className="px-10 py-5 text-center border-t" style={{ borderColor: "#C9A22718", backgroundColor: "#FFFFFF" }}>
+        <footer className="px-4 md:px-10 py-4 text-center border-t" style={{ borderColor: "#C9A22718", backgroundColor: "#FFFFFF" }}>
           <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#0F172A35" }}>
             Flotaya · Soberanía Hídrica
           </p>
@@ -201,54 +202,50 @@ export default function Dashboard() {
       {/* ── HEADER ── */}
       <header
         style={{ backgroundColor: "#FFFFFF", borderBottom: "1px solid #C9A22718" }}
-        className="px-6 md:px-10 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm"
+        className="px-4 md:px-10 py-3 md:py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm"
       >
-        {/* Logo + boya seleccionada */}
-        <div className="flex items-center gap-4">
-          <button onClick={() => setSelectedBuoy(null)} className="h-9 w-auto flex items-center">
+        <div className="flex items-center gap-3">
+          <button onClick={() => setSelectedBuoy(null)} className="h-8 w-auto flex items-center">
             <Image
-              src="/logo.png" alt="Flotaya" width={110} height={36}
+              src="/logo.png" alt="Flotaya" width={90} height={30}
               style={{ objectFit: "contain", filter: "brightness(0)" }}
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
             />
           </button>
-          <div className="hidden sm:flex items-center pl-4 border-l" style={{ borderColor: "#C9A22728" }}>
+          <div className="flex items-center pl-3 border-l" style={{ borderColor: "#C9A22728" }}>
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--lympha-amber)" }}>
               Boya {String(selectedBuoy).padStart(2, "0")}
             </p>
           </div>
         </div>
 
-        {/* Nav + CTA */}
-        <div className="flex items-center gap-5">
-          <div className="hidden sm:flex items-center gap-2 text-xs font-semibold uppercase tracking-widest"
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-xs font-semibold"
             style={{ color: error ? "#A34A3E" : "#4A7C59" }}>
             {error ? (
-              <><WifiOff className="w-3.5 h-3.5" /> Sin señal</>
+              <WifiOff className="w-3.5 h-3.5" />
             ) : (
-              <>
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-60"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                En vivo
-              </>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-60"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
             )}
+            <span className="hidden sm:inline">{error ? "Sin señal" : "En vivo"}</span>
           </div>
 
           <Link
             href="/recolector"
-            className="flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all active:scale-95"
+            className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all active:scale-95"
             style={{ backgroundColor: "var(--lympha-walnut)", color: "#FFFFFF" }}
           >
             <Bluetooth className="w-4 h-4" />
-            Recolector
+            <span className="hidden sm:inline">Recolector</span>
           </Link>
         </div>
       </header>
 
       {/* ── MAIN ── */}
-      <main className="p-4 md:p-8">
+      <main className="p-3 md:p-8">
 
         {loading ? (
           <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -287,7 +284,7 @@ export default function Dashboard() {
               <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--lympha-amber)" }}>
                 MONITOREO EN TIEMPO REAL
               </p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-3 md:mt-4">
                 {metrics.map((key) => {
                   const val = data[data.length - 1][key];
                   const status = getStatus(key, val);
@@ -295,22 +292,22 @@ export default function Dashboard() {
                   return (
                     <div
                       key={key}
-                      className="rounded-3xl p-5 relative overflow-hidden border"
+                      className="rounded-2xl md:rounded-3xl p-4 md:p-5 relative overflow-hidden border"
                       style={{ backgroundColor: "var(--lympha-cream)", borderColor: "#C9A22722" }}
                     >
-                      <p className="text-xs font-semibold uppercase tracking-widest mb-3"
+                      <p className="text-xs font-semibold uppercase tracking-widest mb-2 md:mb-3"
                         style={{ color: "var(--lympha-amber)" }}>
                         {meta.label}
                       </p>
-                      <p className="text-4xl font-bold tracking-tight serif-italic leading-none"
+                      <p className="text-3xl md:text-4xl font-bold tracking-tight serif-italic leading-none"
                         style={{ color: "var(--lympha-walnut)" }}>
                         {typeof val === "number" ? val.toFixed(1) : val}
-                        <span className="text-lg ml-1 font-normal" style={{ color: "#0F172A40" }}>
+                        <span className="text-base md:text-lg ml-1 font-normal" style={{ color: "#0F172A40" }}>
                           {meta.unit}
                         </span>
                       </p>
                       <span
-                        className="inline-block mt-3 text-xs font-semibold px-2.5 py-1 rounded-full"
+                        className="inline-block mt-2 md:mt-3 text-xs font-semibold px-2 py-0.5 rounded-full"
                         style={{ backgroundColor: `${status.color}18`, color: status.color }}
                       >
                         {status.label}
@@ -469,8 +466,8 @@ export default function Dashboard() {
                       style={{ backgroundColor: "var(--lympha-cream)", borderColor: "#C9A22720" }}
                     >
                       {/* Chart title: serif para el nombre de la métrica */}
-                      <div className="flex items-baseline justify-between mb-5">
-                        <h3 className="text-lg font-bold serif-italic" style={{ color: "var(--lympha-walnut)" }}>
+                      <div className="flex items-start justify-between gap-2 mb-4">
+                        <h3 className="text-base md:text-lg font-bold serif-italic" style={{ color: "var(--lympha-walnut)" }}>
                           {meta.label}
                           {meta.unit && (
                             <span className="text-sm font-normal ml-1" style={{ color: "#0F172A50", fontStyle: "normal" }}>
@@ -479,14 +476,14 @@ export default function Dashboard() {
                           )}
                         </h3>
                         <span
-                          className="text-xs font-medium px-2 py-0.5 rounded-md"
+                          className="text-xs font-medium px-2 py-0.5 rounded-md flex-shrink-0"
                           style={{ backgroundColor: `${color}15`, color, fontFamily: "var(--font-sans)" }}
                         >
-                          {data.length} lecturas recientes
+                          {data.length}
                         </span>
                       </div>
 
-                      <div className="h-[220px] md:h-[260px] w-full">
+                      <div className="h-[180px] md:h-[260px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#C9A22718" vertical={false} />
@@ -541,9 +538,9 @@ export default function Dashboard() {
       </main>
 
       {/* ── FOOTER ── */}
-      <footer className="px-10 py-5 text-center border-t" style={{ borderColor: "#C9A22718", backgroundColor: "#FFFFFF" }}>
+      <footer className="px-4 py-4 text-center border-t" style={{ borderColor: "#C9A22718", backgroundColor: "#FFFFFF" }}>
         <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#0F172A35" }}>
-          Flotaya · Soberanía Hídrica · Actualización automática cada 15 s
+          Flotaya · Soberanía Hídrica · Auto-actualización cada 15 s
         </p>
       </footer>
     </div>

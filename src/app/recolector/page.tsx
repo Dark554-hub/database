@@ -463,7 +463,7 @@ export default function MobileCollector() {
       {/* ── HEADER ── */}
       <header
         style={{ backgroundColor: "#FFFFFF", borderBottom: "1px solid #C9A22718" }}
-        className="px-6 md:px-10 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm"
+        className="px-4 md:px-10 py-3 md:py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm"
       >
         {/* Logo + back */}
         <div className="flex items-center gap-4">
@@ -498,7 +498,7 @@ export default function MobileCollector() {
 
         {/* Network badge */}
         <div
-          className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold border"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border"
           style={{
             backgroundColor: isOnline ? "#4A7C5910" : "#C9A22710",
             borderColor:     isOnline ? "#4A7C5935" : "#C9A22735",
@@ -506,15 +506,15 @@ export default function MobileCollector() {
           }}
         >
           {isOnline ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
-          {isOnline ? "ONLINE" : "OFF-THE-GRID"}
+          <span className="hidden sm:inline">{isOnline ? "ONLINE" : "SIN RED"}</span>
         </div>
       </header>
 
       {/* ── BODY ── */}
-      <div className="p-4 md:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="p-3 md:p-8 grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
 
         {/* ── LEFT PANEL ── */}
-        <div className="lg:col-span-4 space-y-5">
+        <div className="lg:col-span-4 space-y-4 order-2 lg:order-1">
 
           {/* Bluetooth connect */}
           <div
@@ -669,7 +669,7 @@ export default function MobileCollector() {
         </div>
 
         {/* ── RIGHT PANEL ── */}
-        <div className="lg:col-span-8">
+        <div className="lg:col-span-8 order-1 lg:order-2">
 
           {/* OFFLINE: last local reading */}
           {!isOnline && (
@@ -790,7 +790,7 @@ export default function MobileCollector() {
       </div>
 
       {/* ── FOOTER ── */}
-      <footer className="px-10 py-5 mt-4 text-center border-t" style={{ borderColor: "#C9A22718", backgroundColor: "#FFFFFF" }}>
+      <footer className="px-4 py-4 mt-2 text-center border-t" style={{ borderColor: "#C9A22718", backgroundColor: "#FFFFFF" }}>
         <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#0F172A35" }}>
           Flotaya · Soberanía Hídrica · Modo {isOnline ? "En línea" : "Sin conexión"}
         </p>
