@@ -12,15 +12,15 @@
   "lang": "es",
   "icons": [
     {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/api/icon?size=192",
+      "sizes": "192x192",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-maskable.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/api/icon?size=512",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "maskable"
     }
   ],
@@ -30,21 +30,21 @@
       "short_name": "Campo",
       "description": "Recolectar datos vía Bluetooth",
       "url": "/recolector",
-      "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+      "icons": [{ "src": "/api/icon?size=192", "sizes": "192x192", "type": "image/png" }]
     }
   ],
   "screenshots": [
     {
-      "src": "/screenshot-desktop.svg",
+      "src": "/api/screenshot?form=wide",
       "sizes": "1280x720",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "form_factor": "wide",
       "label": "Dashboard de monitoreo Flotaya"
     },
     {
-      "src": "/screenshot-mobile.svg",
+      "src": "/api/screenshot?form=narrow",
       "sizes": "390x844",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "form_factor": "narrow",
       "label": "Recolector de campo Flotaya"
     }
