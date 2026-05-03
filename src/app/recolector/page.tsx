@@ -103,10 +103,18 @@ export default function MobileCollector() {
     };
   }, [device, characteristic]);
 
-  // Auto-sync when back online
+  // Auto-sync: cuando vuelve la red o cada 30s si hay datos pendientes
   useEffect(() => {
     if (isOnline && pendingSync.length > 0 && !isSyncing) syncAll();
   }, [isOnline]);
+
+  useEffect(() => {
+    if (pendingSync.length === 0) return;
+    const t = setInterval(() => {
+      if (navigator.onLine && !isSyncing) syncAll();
+    }, 30000);
+    return () => clearInterval(t);
+  }, [pendingSync.length, isSyncing]);
 
   const formatBLEError = (error: unknown) => {
     const msg = (error as Error)?.message?.toLowerCase() ?? "";
@@ -388,56 +396,62 @@ export default function MobileCollector() {
     return null;
   };
 
-  const parseAndStore = (raw: string) => {
-    const payload = parsePayload(raw);
-    if (payload) {
-      pushBleLog(raw, "ok");
-      const read: PendingRead = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        data: payload,
-        timestamp: new Date().toISOString(),
-      };
-      setPendingSync((prev) => [read, ...prev]);
-    } else {
-      pushBleLog(raw, "invalid");
-    }
-  };
-
-  const simulateData = async () => {
-    const payload = {
-      ph: parseFloat((Math.random() * 2 + 6.5).toFixed(2)),
-      turbidez: parseFloat((Math.random() * 3 + 1).toFixed(2)),
-      temperatura: parseFloat((Math.random() * 5 + 24).toFixed(1)),
-      conductividad: parseFloat((Math.random() * 400 + 250).toFixed(1)),
-    };
+  const sendToAPI = async (payload: SensorPayload): Promise<boolean> => {
     try {
-      await fetch("/api/lecturas", {
+      const res = await fetch("/api/lecturas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-    } catch { /* fallback to local queue */ }
-    const csv = `${payload.ph},${payload.turbidez},${payload.temperatura},${payload.conductividad}`;
+      return res.ok;
+    } catch {
+      return false;
+    }
+  };
+
+  const parseAndStore = async (raw: string) => {
+    const payload = parsePayload(raw);
+    if (!payload) { pushBleLog(raw, "invalid"); return; }
+
+    pushBleLog(raw, "ok");
+
+    // Si hay WiFi, intentar enviar directo; si falla o no hay red, encolar
+    if (navigator.onLine) {
+      const ok = await sendToAPI(payload);
+      if (ok) {
+        setLastSyncTime(new Date().toLocaleTimeString());
+        return;
+      }
+    }
+
+    // Sin conexión o fallo: guardar en cola local
+    const read: PendingRead = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      data: payload,
+      timestamp: new Date().toISOString(),
+    };
+    setPendingSync((prev) => [read, ...prev]);
+  };
+
+  const simulateData = () => {
+    const csv = `${(Math.random() * 2 + 6.5).toFixed(2)},${(Math.random() * 3 + 1).toFixed(2)},${(Math.random() * 5 + 24).toFixed(1)},${(Math.random() * 400 + 250).toFixed(1)}`;
     parseAndStore(csv);
   };
 
   const syncAll = async () => {
+    if (isSyncing || pendingSync.length === 0) return;
     setIsSyncing(true);
-    let synced = 0;
-    for (const item of pendingSync) {
-      try {
-        const res = await fetch("/api/lecturas", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(item.data),
-        });
-        if (res.ok) {
-          setPendingSync(prev => prev.filter(p => p.id !== item.id));
-          synced++;
-        }
-      } catch { break; }
+    const queue = [...pendingSync];
+    const syncedIds: string[] = [];
+    for (const item of queue) {
+      const ok = await sendToAPI(item.data);
+      if (ok) syncedIds.push(item.id);
+      else break; // si falla uno, detener (sin conexión)
     }
-    if (synced > 0) setLastSyncTime(new Date().toLocaleTimeString());
+    if (syncedIds.length > 0) {
+      setPendingSync(prev => prev.filter(p => !syncedIds.includes(p.id)));
+      setLastSyncTime(new Date().toLocaleTimeString());
+    }
     setIsSyncing(false);
   };
 
