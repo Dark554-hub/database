@@ -205,17 +205,21 @@ export default function Dashboard() {
         className="px-4 md:px-10 py-3 md:py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm"
       >
         <div className="flex items-center gap-3">
-          <button onClick={() => setSelectedBuoy(null)} className="h-8 w-auto flex items-center">
+          <div className="h-8 w-auto flex items-center">
             <Image
               src="/logo.png" alt="Flotaya" width={90} height={30}
               style={{ objectFit: "contain", filter: "brightness(0)" }}
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
             />
-          </button>
+          </div>
           <div className="flex items-center pl-3 border-l" style={{ borderColor: "#C9A22728" }}>
-            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--lympha-amber)" }}>
+            <button
+              onClick={() => setSelectedBuoy(null)}
+              className="text-xs font-semibold uppercase tracking-widest hover:opacity-70 transition-opacity"
+              style={{ color: "var(--lympha-amber)" }}
+            >
               Boya {String(selectedBuoy).padStart(2, "0")}
-            </p>
+            </button>
           </div>
         </div>
 
