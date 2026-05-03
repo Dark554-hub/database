@@ -29,3 +29,5 @@ swapfile.sys
 # Misc
 *.log
 .DS_Store
+
+.vercel
