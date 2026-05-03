@@ -26,11 +26,14 @@ interface DiagnosticoResult {
 const BOYAS = [1, 2, 3, 4, 5, 6];
 
 export default function Dashboard() {
-  const [selectedBuoy, setSelectedBuoy] = useState<number | null>(() => {
-    if (typeof window === "undefined") return null;
+  const [selectedBuoy, setSelectedBuoy] = useState<number | null>(null);
+  const [buoyReady, setBuoyReady] = useState(false);
+
+  useEffect(() => {
     const saved = localStorage.getItem("flotaya_boya");
-    return saved ? parseInt(saved) : null;
-  });
+    if (saved) setSelectedBuoy(parseInt(saved));
+    setBuoyReady(true);
+  }, []);
 
   const selectBuoy = (n: number | null) => {
     setSelectedBuoy(n);
@@ -135,6 +138,8 @@ export default function Dashboard() {
   };
 
   // ── BUOY SELECTOR SCREEN ──
+  if (!buoyReady) return null;
+
   if (!selectedBuoy) {
     return (
       <div className="min-h-screen flex flex-col" style={{ backgroundColor: "var(--lympha-sand)" }}>
