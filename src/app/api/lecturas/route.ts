@@ -1,51 +1,46 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 
-function getClient(useServiceRole = false) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = useServiceRole
-    ? process.env.SUPABASE_SERVICE_ROLE_KEY!
-    : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  return createClient(url, key);
+const SUPABASE_URL = 'https://swnhvzevedukcnkxhsvp.supabase.co';
+const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3bmh2emV2ZWR1a2Nua3hoc3ZwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTE4NjU2OCwiZXhwIjoyMDkwNzYyNTY4fQ.X1aVJJToKddLqAcphprRhKLSX3kTdl1tbOWFwGTm_H4';
+
+function headers() {
+  return {
+    'Content-Type': 'application/json',
+    'apikey': SERVICE_KEY,
+    'Authorization': `Bearer ${SERVICE_KEY}`,
+  };
 }
 
-// GET /api/lecturas — Obtiene las últimas 100 lecturas de la boya
+// GET /api/lecturas
 export async function GET() {
-  const supabase = getClient();
-  const { data, error } = await supabase
-    .from('sensors')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(100);
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/sensors?select=*&order=created_at.desc&limit=100`,
+    { headers: headers() }
+  );
 
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  if (!res.ok) {
+    const err = await res.json();
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 
+  const data = await res.json();
   const formattedData = data.reverse().map((record: any) => ({
     timestamp: record.created_at,
-    ...record.payload
+    ...record.payload,
   }));
 
   return NextResponse.json({ success: true, data: formattedData });
 }
 
-// POST /api/lecturas — Inserta una nueva lectura de sensor en la base de datos
+// POST /api/lecturas
 export async function POST(request: Request) {
   try {
     const payload = await request.json();
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-    const res = await fetch(`${url}/rest/v1/sensors`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/sensors`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': key,
-        'Authorization': `Bearer ${key}`,
-        'Prefer': 'return=representation',
-      },
+      headers: { ...headers(), 'Prefer': 'return=representation' },
       body: JSON.stringify({ payload }),
     });
 
@@ -56,12 +51,12 @@ export async function POST(request: Request) {
 
     const data = await res.json();
     return NextResponse.json(
-      { success: true, message: 'Lectura guardada en Supabase', record: data[0] },
+      { success: true, message: 'Lectura guardada', record: data[0] },
       { status: 201 }
     );
   } catch (error: any) {
     return NextResponse.json(
-      { success: false, error: error.message || 'Payload JSON inválido' },
+      { success: false, error: error.message || 'Payload inválido' },
       { status: 400 }
     );
   }
