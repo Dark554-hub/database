@@ -26,7 +26,17 @@ interface DiagnosticoResult {
 const BOYAS = [1, 2, 3, 4, 5, 6];
 
 export default function Dashboard() {
-  const [selectedBuoy, setSelectedBuoy] = useState<number | null>(null);
+  const [selectedBuoy, setSelectedBuoy] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    const saved = localStorage.getItem("flotaya_boya");
+    return saved ? parseInt(saved) : null;
+  });
+
+  const selectBuoy = (n: number | null) => {
+    setSelectedBuoy(n);
+    if (n === null) localStorage.removeItem("flotaya_boya");
+    else localStorage.setItem("flotaya_boya", String(n));
+  };
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -160,7 +170,7 @@ export default function Dashboard() {
             {BOYAS.map((num) => (
               <button
                 key={num}
-                onClick={() => setSelectedBuoy(num)}
+                onClick={() => selectBuoy(num)}
                 className="rounded-2xl md:rounded-3xl p-4 md:p-6 border text-left transition-all active:scale-95 hover:shadow-md"
                 style={{ backgroundColor: "#FFFFFF", borderColor: "#C9A22722" }}
               >
@@ -234,7 +244,7 @@ export default function Dashboard() {
           </div>
 
           <button
-            onClick={() => setSelectedBuoy(null)}
+            onClick={() => selectBuoy(null)}
             className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all active:scale-95 border"
             style={{ borderColor: "var(--lympha-walnut)", color: "var(--lympha-walnut)", backgroundColor: "transparent" }}
           >
