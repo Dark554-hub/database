@@ -403,8 +403,21 @@ export default function MobileCollector() {
     }
   };
 
-  const simulateData = () => {
-    const csv = `${(Math.random() * 2 + 6.5).toFixed(2)},${(Math.random() * 3 + 1).toFixed(2)},${(Math.random() * 5 + 24).toFixed(1)},${(Math.random() * 400 + 250).toFixed(1)}`;
+  const simulateData = async () => {
+    const payload = {
+      ph: parseFloat((Math.random() * 2 + 6.5).toFixed(2)),
+      turbidez: parseFloat((Math.random() * 3 + 1).toFixed(2)),
+      temperatura: parseFloat((Math.random() * 5 + 24).toFixed(1)),
+      conductividad: parseFloat((Math.random() * 400 + 250).toFixed(1)),
+    };
+    try {
+      await fetch("/api/lecturas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch { /* fallback to local queue */ }
+    const csv = `${payload.ph},${payload.turbidez},${payload.temperatura},${payload.conductividad}`;
     parseAndStore(csv);
   };
 
