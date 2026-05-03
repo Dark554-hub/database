@@ -2,9 +2,11 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-function getClient() {
+function getClient(useServiceRole = false) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const key = useServiceRole
+    ? process.env.SUPABASE_SERVICE_ROLE_KEY!
+    : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   return createClient(url, key);
 }
 
@@ -33,7 +35,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const payload = await request.json();
-    const supabase = getClient();
+    const supabase = getClient(true);
 
     const { data, error } = await supabase
       .from('sensors')
