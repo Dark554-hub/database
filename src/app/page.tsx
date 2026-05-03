@@ -213,13 +213,9 @@ export default function Dashboard() {
             />
           </div>
           <div className="flex items-center pl-3 border-l" style={{ borderColor: "#C9A22728" }}>
-            <button
-              onClick={() => setSelectedBuoy(null)}
-              className="text-xs font-semibold uppercase tracking-widest hover:opacity-70 transition-opacity"
-              style={{ color: "var(--lympha-amber)" }}
-            >
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--lympha-amber)" }}>
               Boya {String(selectedBuoy).padStart(2, "0")}
-            </button>
+            </p>
           </div>
         </div>
 
@@ -236,6 +232,15 @@ export default function Dashboard() {
             )}
             <span className="hidden sm:inline">{error ? "Sin señal" : "En vivo"}</span>
           </div>
+
+          <button
+            onClick={() => setSelectedBuoy(null)}
+            className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all active:scale-95 border"
+            style={{ borderColor: "var(--lympha-walnut)", color: "var(--lympha-walnut)", backgroundColor: "transparent" }}
+          >
+            <Waves className="w-4 h-4" />
+            <span className="hidden sm:inline">Cambiar boya</span>
+          </button>
 
           <Link
             href="/recolector"
