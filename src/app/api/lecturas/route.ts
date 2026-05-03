@@ -35,15 +35,26 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const payload = await request.json();
-    const supabase = getClient(true);
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-    const { data, error } = await supabase
-      .from('sensors')
-      .insert([{ payload }])
-      .select();
+    const res = await fetch(`${url}/rest/v1/sensors`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': key,
+        'Authorization': `Bearer ${key}`,
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify({ payload }),
+    });
 
-    if (error) throw error;
+    if (!res.ok) {
+      const err = await res.json();
+      return NextResponse.json({ success: false, error: err.message || err.code }, { status: 500 });
+    }
 
+    const data = await res.json();
     return NextResponse.json(
       { success: true, message: 'Lectura guardada en Supabase', record: data[0] },
       { status: 201 }
