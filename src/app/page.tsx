@@ -43,7 +43,7 @@ export default function Dashboard() {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [metrics, setMetrics] = useState<string[]>([]);
+  const [metrics, setMetrics] = useState<string[]>(["ph", "turbidez", "temperatura", "conductividad"]);
   const [diagnostico, setDiagnostico] = useState<DiagnosticoResult | null>(null);
   const [diagLoading, setDiagLoading] = useState(false);
   const lastDiagKey = React.useRef<string>("");
@@ -102,7 +102,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
-    const t = setInterval(fetchData, 15000); // Polling cada 15s en vez de 3s
+    const t = setInterval(fetchData, 5000);
     return () => clearInterval(t);
   }, []);
 
