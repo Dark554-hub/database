@@ -557,6 +557,54 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {/* ── DATA TABLE ── */}
+            <div className="mt-8">
+              <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--lympha-amber)" }}>
+                REGISTROS
+              </p>
+              <h2 className="text-2xl font-bold serif-italic mb-5" style={{ color: "var(--lympha-walnut)" }}>
+                Tabla de Lecturas — Boya {String(selectedBuoy).padStart(2, "0")}
+              </h2>
+              <div className="rounded-3xl border overflow-hidden" style={{ borderColor: "#C9A22720", backgroundColor: "var(--lympha-cream)" }}>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #C9A22718", backgroundColor: "#C9A22708" }}>
+                        <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-widest" style={{ color: "var(--lympha-amber)" }}>Fecha / Hora</th>
+                        {metrics.map(key => (
+                          <th key={key} className="text-right px-4 py-3 text-xs font-bold uppercase tracking-widest" style={{ color: "var(--lympha-amber)" }}>
+                            {metricLabel[key]?.label ?? key}
+                            {metricLabel[key]?.unit ? <span className="font-normal opacity-60 ml-1">{metricLabel[key].unit.trim()}</span> : null}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...data].reverse().slice(0, 50).map((row, i) => (
+                        <tr key={i} style={{ borderBottom: "1px solid #C9A22710" }} className="hover:bg-amber-50 transition-colors">
+                          <td className="px-4 py-2.5 font-medium tabular-nums" style={{ color: "#0F172A70", fontSize: 12 }}>
+                            {(() => { try { return format(new Date(row.timestamp), "dd/MM/yy HH:mm:ss"); } catch { return row.timestamp; } })()}
+                          </td>
+                          {metrics.map(key => {
+                            const val = row[key];
+                            const { label: _, color } = val !== undefined ? (() => { const s = getStatus(key, val); return { label: s.label, color: s.color }; })() : { label: "—", color: "#64748b" };
+                            return (
+                              <td key={key} className="px-4 py-2.5 text-right font-bold tabular-nums" style={{ color, fontSize: 13 }}>
+                                {val !== undefined ? val : <span style={{ color: "#0F172A30" }}>—</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-4 py-3 text-xs font-medium text-right" style={{ color: "#0F172A40", borderTop: "1px solid #C9A22710" }}>
+                  Mostrando {Math.min(50, data.length)} de {data.length} registros
+                </div>
+              </div>
+            </div>
+
           </div>
         )}
       </main>
@@ -564,7 +612,7 @@ export default function Dashboard() {
       {/* ── FOOTER ── */}
       <footer className="px-4 py-4 text-center border-t" style={{ borderColor: "#C9A22718", backgroundColor: "#FFFFFF" }}>
         <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#0F172A35" }}>
-          Flotaya · Soberanía Hídrica · Auto-actualización cada 15 s
+          Flotaya · Soberanía Hídrica
         </p>
       </footer>
     </div>
