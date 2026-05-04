@@ -1,4 +1,4 @@
-const CACHE = 'flotaya-v5';
+const CACHE = 'flotaya-v6';
 const PRECACHE = ['/', '/recolector', '/manifest.json', '/icon.svg', '/logo.png'];
 
 self.addEventListener('install', e => {
