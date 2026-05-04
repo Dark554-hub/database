@@ -55,6 +55,7 @@ export default function MobileCollector() {
   const [isWebBluetoothSupported, setIsWebBluetoothSupported] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [bleLogs, setBleLogs] = useState<BleLogItem[]>([]);
   const [bleFramesCount, setBleFramesCount] = useState(0);
   const [bleLastRaw, setBleLastRaw] = useState<string>("—");
@@ -441,12 +442,27 @@ export default function MobileCollector() {
   const syncAll = async () => {
     if (isSyncing || pendingSync.length === 0) return;
     setIsSyncing(true);
+    setSyncError(null);
     const queue = [...pendingSync];
     const syncedIds: string[] = [];
     for (const item of queue) {
-      const ok = await sendToAPI(item.data);
-      if (ok) syncedIds.push(item.id);
-      else break; // si falla uno, detener (sin conexión)
+      try {
+        const res = await fetch("/api/lecturas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(item.data),
+        });
+        if (res.ok) {
+          syncedIds.push(item.id);
+        } else {
+          const err = await res.json().catch(() => ({}));
+          setSyncError(`Error ${res.status}: ${err.error ?? "fallo al subir"}`);
+          break;
+        }
+      } catch (e: any) {
+        setSyncError(`Sin conexión: ${e.message}`);
+        break;
+      }
     }
     if (syncedIds.length > 0) {
       setPendingSync(prev => prev.filter(p => !syncedIds.includes(p.id)));
@@ -665,6 +681,11 @@ export default function MobileCollector() {
 
             {pendingSync.length > 0 ? (
               <div className="space-y-2">
+                {syncError && (
+                  <p className="text-xs font-medium px-3 py-2 rounded-lg" style={{ backgroundColor: "#A34A3E12", color: "#A34A3E" }}>
+                    {syncError}
+                  </p>
+                )}
                 {isOnline && (
                   <button
                     onClick={syncAll}
