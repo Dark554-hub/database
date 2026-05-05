@@ -416,22 +416,20 @@ export default function MobileCollector() {
 
     pushBleLog(raw, "ok");
 
-    // Si hay WiFi, intentar enviar directo; si falla o no hay red, encolar
-    if (navigator.onLine) {
-      const ok = await sendToAPI(payload);
-      if (ok) {
-        setLastSyncTime(new Date().toLocaleTimeString());
-        return;
-      }
-    }
-
-    // Sin conexión o fallo: guardar en cola local
     const read: PendingRead = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       data: payload,
       timestamp: new Date().toISOString(),
     };
     setPendingSync((prev) => [read, ...prev]);
+
+    if (navigator.onLine) {
+      const ok = await sendToAPI(payload);
+      if (ok) {
+        setLastSyncTime(new Date().toLocaleTimeString());
+        setPendingSync((prev) => prev.filter((p) => p.id !== read.id));
+      }
+    }
   };
 
   const simulateData = () => {
